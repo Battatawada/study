@@ -1,36 +1,38 @@
 {
-  "channel_name": "Retro Movie Archive",
+  "channel_name": "Byte Glossary",
   "shorts": {
     "max_per_day": 0,
     "optimal_times": []
   },
   "long_form": {
     "max_per_day": 1,
-    "optimal_times": ["18:00"]
+    "optimal_times": ["17:00"]
   },
   "scheduling": {
-    "min_gap_hours": 36,
+    "min_gap_hours": 48,
     "avoid_hours": [0, 1, 2, 3, 4, 5]
   },
   "seo": {
-    "niche": "movie recap film summary ending explained classic movies",
+    "niche": "explained programming computer science tutorial learn coding devops networking",
     "default_tags": [
-      "retro movie archive",
-      "movie recap",
-      "film recap",
-      "movie summary",
-      "ending explained",
-      "full movie recap",
-      "classic movies",
-      "plot recap"
+      "byte glossary",
+      "explained",
+      "programming",
+      "computer science",
+      "tutorial",
+      "learn coding",
+      "tech explained",
+      "developer",
+      "software engineering",
+      "coding for beginners"
     ],
-    "title_max_chars": 65,
+    "title_max_chars": 70,
     "region": "US",
-    "description_footer": "About Retro Movie Archive\nClassic films. Condensed. Narrated.\n\nSubscribe for weekly movie recaps.\nhttps://www.youtube.com/@retromoviearchive\n\n#movierecap #retromoviearchive #filmrecap"
+    "description_footer": "About Byte Glossary\nEvery tech concept. One video.\n\nSubscribe for weekly explainers.\nhttps://www.youtube.com/@ByteGlossary\n\n#explained #programming #byteglossary"
   },
   "upload": {
     "privacy": "public",
-    "category_id": "1",
+    "category_id": "27",
     "made_for_kids": false,
     "self_declared_made_for_kids": false,
     "embeddable": true,

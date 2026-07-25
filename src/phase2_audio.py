@@ -2,8 +2,8 @@
 """
 Phase 2 — Azure Speech TTS (primary) + edge-tts fallback
 
-  Single narrator: ChristopherNeural (movie recap standard)
-  Quote lines in double quotes → Guy/Aria via SSML voice switch
+  Single narrator: GuyNeural (teaching explainer standard)
+  Quote lines in double quotes → Christopher/Aria via SSML voice switch
   Per-scene audio + captions.srt for YouTube upload
 """
 

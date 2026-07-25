@@ -1,4 +1,4 @@
-Analyze this specific competitor recap video in the notebook sources.
+Analyze this specific competitor explainer video in the notebook sources.
 
 Video URL: {video_url}
 
@@ -6,10 +6,11 @@ Use the video's **subtitles/transcript** as ground truth.
 
 Reply with bullet points only (max 8):
 - Opening hook (quote the vibe of first 2–3 caption lines, do not copy verbatim)
-- Narration pace (words per minute feel, pause pattern)
-- How visual beats align with caption blocks
-- Mid-video retention devices (questions, foreshadowing, "but then…")
-- How the ending is delivered in the last 60 seconds of transcript
+- Narration pace (WPM feel, pause pattern between concepts)
+- How section labels are spoken ("Arrays." / "HTTP 404." pattern)
+- Concept density (concepts per minute)
+- Definition → example pattern used
+- How the ending recap is delivered in last 60 seconds
 - Title/thumbnail promise vs what transcript delivers
-- 2 things to copy for Retro Movie Archive
+- 2 things to copy for Simply Explained
 - 1 thing to avoid

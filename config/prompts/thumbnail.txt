@@ -1,28 +1,31 @@
-Design ONE YouTube thumbnail for this movie recap.
+Design ONE YouTube thumbnail for this tech explainer video.
 
-Movie: {topic}
+Topic: {topic}
 LOCKED video title: {title}
-Thumbnail hook text (from hook package — use for overlay): {thumbnail_text}
+Thumbnail hook text (from hook package): {thumbnail_text}
+Icon emoji (optional accent): {icon_emoji}
 
-STYLE BRIEF (match competitor thumbnail patterns):
+STYLE BRIEF (match Codist / Just Explained / Infinite Codes thumbnail patterns):
 {style_notes}
 
-We fetch a real photo from Wikimedia Commons (not AI). Your job: specify search + confirm overlay.
+We compose thumbnails programmatically (dark bg + bold text + emoji). Your job: specify text layout.
 
 Reply with ONLY raw JSON:
 {{
-  "image_search_query": "Wikipedia/Wikimedia search: lead actor + film title + year (e.g. 'Inception 2010 film' or 'Leonardo DiCaprio Inception')",
-  "fallback_search_query": "second search if first fails",
-  "overlay_title": "2–4 words MAX — use thumbnail_text from hook package",
-  "overlay_subtitle": "RECAP or EXPLAINED or ENDING — one word",
+  "overlay_title": "2–4 words — topic shorthand (e.g. HTTP CODES, DATA STRUCTURES)",
+  "overlay_subtitle": "EXPLAINED or IN 14 MIN",
+  "time_badge": "14 MIN or 20 MIN — match video length",
   "text_color": "#FFFFFF",
-  "accent_color": "#E63946",
-  "style_notes": "hero face right-weighted, dark left third for text, bold sans-serif white + stroke, last word red accent"
+  "accent_color": "#3B82F6",
+  "bg_color": "#0f0f1a",
+  "icon_emoji": "single emoji matching topic",
+  "style_notes": "dark navy bg, bold white title, blue accent on subtitle chip, emoji top-right, clean sans-serif"
 }}
 
 Rules:
 - High contrast, readable on mobile at 120px width
-- One hero face or iconic still — not a 6-panel collage
-- No studio logos, no rating badges, no text in the source image
-- Overlay text must match title + cold open promise
-- Curiosity without lying (no fake red arrows on things that never happen)
+- Dark background (#0f0f1a or similar) — NOT white
+- Title = topic name, NOT clickbait question
+- Time badge in corner (e.g. "14 MIN") — matches competitor pattern
+- No faces required — concept/icon driven
+- No studio logos, no fake red arrows

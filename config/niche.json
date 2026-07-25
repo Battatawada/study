@@ -1,8 +1,10 @@
 {
-  "name": "Retro Movie Archive",
-  "handle": "retromoviearchive",
-  "tagline": "Classic films. Condensed. Narrated.",
-  "description": "Retro Movie Archive — full movie recaps with real footage and original narration.\n\nWe break down classic and cult films scene by scene: the plot, the twists, and the ending — in minutes, not hours.\n\nNew recaps weekly.\n\nSubscribe: https://www.youtube.com/@retromoviearchive",
-  "audience": "movie fans who want quick plot recaps and ending explanations",
-  "topic_format": "{movie_title} ({year}) — hook-driven recap title from story_hook_package"
+  "name": "Byte Glossary",
+  "handle": "ByteGlossary",
+  "tagline": "Every tech concept. One video.",
+  "description": "Byte Glossary — fast, complete explainers for tech and computer science.\n\nEach video maps one topic from zero: every key term defined, connected, and explained in 12–22 minutes. No fluff, no prerequisites, no 40-tab rabbit holes.\n\nWhether you're prepping for an interview, filling a knowledge gap, or just curious how things work — one video is the whole picture.\n\nNew explainers weekly.\n\nSubscribe: https://www.youtube.com/@ByteGlossary",
+  "audience": "students, self-taught developers, and curious adults who want fast concept maps",
+  "topic_format": "Every {subject} Explained in {minutes} Minutes",
+  "vertical": "tech_cs",
+  "render_mode": "slides"
 }

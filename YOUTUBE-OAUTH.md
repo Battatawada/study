@@ -18,7 +18,7 @@ Copy `YOUTUBE_REFRESH_TOKEN` and client id/secret from `client_secret_*.json`.
 ## 2. GitHub secrets
 
 ```powershell
-$Repo = "Battatawada/movie"
+$Repo = "Battatawada/study"
 "CLIENT_ID" | gh secret set YOUTUBE_CLIENT_ID --repo $Repo
 "CLIENT_SECRET" | gh secret set YOUTUBE_CLIENT_SECRET --repo $Repo
 "REFRESH_TOKEN" | gh secret set YOUTUBE_REFRESH_TOKEN --repo $Repo

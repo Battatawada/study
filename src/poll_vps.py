@@ -15,7 +15,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from common import httpx_get_json_with_retry
 
 SETUP_PHASES = frozenset({"queued", "clips"})
-CLIP_STALL_SEC = 1800  # clip extraction should show steady progress
+CLIP_STALL_SEC = 7200  # clip extraction can take 10+ min each on VPS
 POST_CLIP_STALL_SEC = 7200  # concat/mux may run long without clips_ready updates
 
 

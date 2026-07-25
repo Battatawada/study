@@ -1,8 +1,8 @@
-From the numbered list below, pick exactly ONE movie for the next recap video.
+Pick the single best topic from this list for the next Simply Explained video.
 
-Banned (already done): see conversation history / past topics.
+Consider: search volume potential, evergreen value, visual slide potential, and freshness vs past topics.
 
-List:
+Topics:
 {topics_list}
 
-Reply with ONLY the chosen line (Title (Year) — hook). No explanation.
+Reply with ONLY the chosen topic line — one line, no explanation.

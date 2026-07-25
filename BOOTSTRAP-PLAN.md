@@ -25,7 +25,7 @@
 
 ## Still open
 
-- [x] GitHub repo [`Battatawada/movie`](https://github.com/Battatawada/movie)
+- [x] GitHub repo [`Battatawada/study`](https://github.com/Battatawada/study)
 - [ ] Deploy VPS worker on Oracle (`scripts/vps-setup.sh`)
 - [ ] Upload first film to `/opt/movies/{slug}/`
 - [ ] Set GHA secrets (`NOTEBOOKLM_AUTH_JSON`, `VPS_*`, `YOUTUBE_*`)

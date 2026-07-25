@@ -1,12 +1,16 @@
-name: Retro Movie Recap Pipeline
+name: Simply Explained Pipeline
 
 on:
   schedule:
     - cron: "0 14 * * 3"
   workflow_dispatch:
     inputs:
+      topic_slug:
+        description: "Optional topic slug from config/topic_queue.json"
+        required: false
+        type: string
       movie_slug:
-        description: "Optional movie slug from config/movie_queue.json"
+        description: "Legacy alias for topic_slug"
         required: false
         type: string
       skip_phase1:
@@ -188,12 +192,16 @@ jobs:
           NOTEBOOKLM_PROFILE: retro
         run: |
           ARGS=(--output output)
-          if [ -n "${{ github.event.inputs.movie_slug }}" ]; then
-            ARGS+=(--movie-slug "${{ github.event.inputs.movie_slug }}")
+          TOPIC_SLUG="${{ github.event.inputs.topic_slug }}"
+          if [ -z "$TOPIC_SLUG" ]; then
+            TOPIC_SLUG="${{ github.event.inputs.movie_slug }}"
+          fi
+          if [ -n "$TOPIC_SLUG" ]; then
+            ARGS+=(--topic-slug "$TOPIC_SLUG")
           fi
           python src/phase1_script.py "${ARGS[@]}"
 
-      - name: Build thumbnail (Wikimedia + overlay)
+      - name: Build thumbnail (dark bg + text overlay)
         if: ${{ github.event.inputs.skip_phase2 != 'true' }}
         run: python src/build_thumbnail.py --input output
         continue-on-error: true

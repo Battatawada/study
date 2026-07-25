@@ -1,7 +1,7 @@
-You are a YouTube growth specialist for movie recap channels (US audience).
+You are a YouTube growth specialist for tech explainer channels (US audience).
 
-Movie: {topic}
-Channel: Retro Movie Archive — real film clips (muted) + original narration + subtle background music
+Topic: {topic}
+Channel: Simply Explained — slide visuals + AI narration + minimal background music
 
 LOCKED TITLE (use exactly — do not rewrite):
 {locked_title}
@@ -18,17 +18,18 @@ The title field is LOCKED — copy it exactly from above.
 Reply with ONLY raw JSON:
 {{
   "title": "{locked_title}",
-  "description": "1800–3500 chars. Line 1–2 hook (spoiler-aware tease matching locked title). Blank line. 5–7 emoji bullets of what viewers learn. Blank line. '⏱️ Timestamps coming soon'. Blank line. 2-line subscribe CTA. Blank line. 3 hashtags at end.",
-  "tags": ["15–25 tags: movie name, year, genre, recap, ending explained, character names, franchise"],
-  "hashtags": ["#movierecap", "#endingexplained", "#retromoviearchive"],
+  "description": "1800–3500 chars. Line 1–2 hook matching locked title (what viewer will learn). Blank line. 5–8 emoji bullets of concepts covered. Blank line. '⏱️ Timestamps coming soon'. Blank line. 2-line subscribe CTA. Blank line. 3 hashtags at end.",
+  "tags": ["15–25 tags: topic name, related terms, 'explained', 'tutorial', 'programming', 'computer science', specific concept names from video"],
+  "hashtags": ["#explained", "#programming", "#simplyexplained"],
   "chapters": [
-    {{"label": "Intro", "hint": "approx narration beat"}},
-    {{"label": "Act 1", "hint": "..."}}
+    {{"label": "Intro", "hint": "cold open concept"}},
+    {{"label": "Concept Name", "hint": "first major section"}}
   ]
 }}
 
 Rules:
 - Title must match locked title character-for-character
 - Description first 150 chars must work as search snippet
-- Tags mix broad (movie recap) + specific (character, twist name)
-- No misleading clickbait that the video does not deliver
+- Tags mix broad (explained, tutorial) + specific (HTTP 404, binary tree, etc.)
+- Chapters = one per major concept section (8–15 chapters)
+- No misleading clickbait

@@ -1,0 +1,37 @@
+You are building a visual scene map for an automated teaching video.
+
+The narration is split into {scene_count} scenes (one voiceover beat each).
+Each scene needs an on-screen slide: title + 1–3 bullet points matching what's being said.
+
+Narration scenes:
+{narration_scenes}
+
+Reply with ONLY valid JSON (no markdown):
+{{
+  "scenes": [
+    {{
+      "scene_id": 1,
+      "visual_title": "2–6 words shown large on screen — concept name or key phrase",
+      "visual_bullets": ["bullet 1 max 8 words", "bullet 2 optional", "bullet 3 optional"],
+      "visual_type": "concept_card|list|comparison|example|recap",
+      "accent_color": "#3B82F6",
+      "music_mood": "calm|focus|example|recap|transition",
+      "reason": "brief note"
+    }}
+  ]
+}}
+
+Rules:
+- Exactly {scene_count} scenes, scene_id {scene_id_start}..{scene_id_end}
+- visual_title = what's being defined or explained in that beat
+- visual_bullets = key facts from narration (not full sentences — keywords)
+- visual_type guide:
+  - concept_card: new term being introduced (most common)
+  - list: enumerating items (e.g. "5 HTTP methods")
+  - comparison: X vs Y (e.g. "SQL vs NoSQL")
+  - example: concrete real-world case
+  - recap: summary section near end
+- accent_color: pick from palette — #3B82F6 (blue), #10B981 (green), #F59E0B (amber), #EF4444 (red), #8B5CF6 (purple), #06B6D4 (cyan)
+- Use a NEW accent_color when switching to a new major concept
+- music_mood: calm (definitions), focus (technical detail), example (real-world), recap (summary), transition (between sections)
+- Keep visual_title SHORT — it must fit on one line at 72px

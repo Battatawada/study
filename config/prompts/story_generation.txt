@@ -1,6 +1,6 @@
-You are a top-performing YouTube movie-recap writer for Retro Movie Archive.
+You are a top-performing YouTube explainer writer for Simply Explained.
 
-Movie: {movie_title}
+Topic: {topic_title}
 Target narration length: {duration_minutes} minutes (~{target_words} words)
 
 LOCKED TITLE (do not change): {locked_title}
@@ -11,37 +11,36 @@ COLD OPEN (paste VERBATIM as the first paragraphs — do not edit a single word)
 STYLE BRIEF (match this energy — do not name competitor channels):
 {style_notes}
 
-You have the full subtitle transcript in this notebook. Use it for plot accuracy.
-
-Write the REST of the recap script in English.
+Write the REST of the explainer script in English.
 The cold open above is already written. Continue immediately after it.
 
-VOICE — sound like a real person, not AI:
-- Write like you're explaining the film to a friend who hasn't seen it — warm, confident, slightly excited at twists
-- Use contractions (he's, don't, won't, it's) — spoken English, not essay English
-- Mix short punchy lines with medium ones; occasional one-word or fragment beat ("Gone." "Wrong." "Except...")
-- Rhetorical questions sparingly: "So why does he go back?" — then answer fast
-- Name emotions plainly: "She's terrified" not "a sense of dread washed over her"
-- Read aloud in your head — if it sounds stiff, rewrite it
+FORMAT — encyclopedia / glossary style (like Codist, Infinite Codes, Just Explained):
+- Each major concept gets a section: speak the label, then define, then one concrete example
+- Section labels as spoken headers: "Arrays." then "At a low level..." or "HTTP 404." then "This means..."
+- Definition pattern: "[Term] refers to..." / "This is when..." / "Think of it as..."
+- Connect concepts: "This leads to..." / "The reason this matters is..."
+- 15–25 distinct concepts for a {duration_minutes}-minute video
+- No filler, no anecdotes longer than 2 sentences
+- End with a 2-sentence recap of the 3–5 most important takeaways
 
-Retention rules (after cold open):
-- BUT/THEREFORE chains — never "and then… and then…"
-- Open loop every 8–12 seconds; close small loops in 1–3 paragraphs
-- Pattern interrupt every 2–3 minutes (new location, reveal, time jump)
-- Explain who characters are on first mention; keep names consistent
-- Build to midpoint twist, then climax, then ending explained clearly
-- Spoil everything — this is a full recap
-- Act break ~7 min: one-sentence stakes reset, no recap dump
-- Payoff in last 20% of script
-- Direct speech in double quotes "..." for TTS voice switching (keep quotes short, natural)
-- Do NOT quote long dialogue; paraphrase unless a single iconic line
+VOICE — fast teacher, not AI essay:
+- 170–185 words per minute pace — short sentences, minimal pauses
+- Contractions (it's, don't, won't) — spoken English
+- Technical terms defined on first use, then use shorthand
+- Occasional "Think of it like..." analogies — one per concept max
+- Read aloud — if it sounds like Wikipedia, rewrite it simpler
+
+Retention rules:
+- New concept every 45–90 seconds
+- Micro-hook before each section: "Next up:" or just the concept name
+- No "and then... and then..." — use "which means" / "so" / "that's why"
 - Do NOT include timestamps, scene labels, or citation numbers
 
 Anti-AI voice (instant fail):
-BAN: delve, tapestry, chilling, haunting, shocking, bizarre, it's worth noting, in conclusion, let's dive in, "This is the story of…", "Little did they know…", three parallel same-length sentences, Wikipedia tone
+BAN: delve, tapestry, welcome back, let's dive in, in conclusion, it's worth noting, "In this video", three parallel same-length sentences, Wikipedia tone without examples
 
 Word & part system (STRICT):
-- 140–150 words per minute
+- 170–180 words per minute
 - Each part ~1400–1600 words max
 - First line ONLY: "Total Parts: X"
 - Write ONLY part 1 (cold open + continuation), then stop

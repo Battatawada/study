@@ -3,7 +3,7 @@
 set -euo pipefail
 
 APP_ROOT="${APP_ROOT:-/opt/retro-movies}"
-APP_REPO_URL="${APP_REPO_URL:-https://github.com/Battatawada/movie.git}"
+APP_REPO_URL="${APP_REPO_URL:-https://github.com/Battatawada/study.git}"
 MOVIES_DIR="${MOVIES_DIR:-/opt/movies}"
 APP_USER="${APP_USER:-niche}"
 APP_PORT="${APP_PORT:-8766}"

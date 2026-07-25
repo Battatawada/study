@@ -16,7 +16,7 @@ fi
 if [[ -z "$WEBHOOK_SECRET" ]]; then
   WEBHOOK_SECRET="$(openssl rand -hex 32)"
   echo "Generated WEBHOOK_SECRET=$WEBHOOK_SECRET"
-  echo "Add to GitHub: gh secret set VPS_WEBHOOK_SECRET --repo Battatawada/movie"
+  echo "Add to GitHub: gh secret set VPS_WEBHOOK_SECRET --repo Battatawada/study"
 fi
 
 mkdir -p "$MOVIES_DIR" "$APP_ROOT/runs"

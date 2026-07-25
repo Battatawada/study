@@ -93,6 +93,54 @@ def _load_font(size: int, bold: bool = True) -> ImageFont.FreeTypeFont | ImageFo
     return ImageFont.load_default()
 
 
+def compose_text_thumbnail(meta: dict[str, Any], dest: Path, *, size: tuple[int, int] = (1280, 720)) -> Path:
+    """Dark-bg text-only thumbnail for teaching explainers."""
+    bg = _hex_to_rgb(str(meta.get("bg_color", "#0f0f1a")))
+    img = Image.new("RGB", size, bg)
+    draw = ImageDraw.Draw(img)
+
+    raw_title = str(meta.get("overlay_title") or meta.get("thumbnail_text") or "EXPLAINED")
+    title_words = raw_title.strip().upper().split()[:4]
+    subtitle = str(meta.get("overlay_subtitle") or "EXPLAINED")[:16].upper()
+    time_badge = str(meta.get("time_badge", "")).upper()
+    emoji = str(meta.get("icon_emoji", "")).strip()
+    text_color = _hex_to_rgb(str(meta.get("text_color", "#FFFFFF")))
+    accent = _hex_to_rgb(str(meta.get("accent_color", "#3B82F6")))
+
+    title_font = _load_font(72)
+    sub_font = _load_font(36)
+    badge_font = _load_font(28)
+    emoji_font = _load_font(48)
+
+    if emoji:
+        draw.text((size[0] - 80, 40), emoji, font=emoji_font, fill=text_color)
+
+    tx = 60
+    ty = size[1] // 2 - 80
+
+    def _stroke_text(x: int, y: int, text: str, font, fill: tuple[int, int, int]) -> None:
+        for dx, dy in [(-2, 0), (2, 0), (0, -2), (0, 2)]:
+            draw.text((x + dx, y + dy), text, font=font, fill=(0, 0, 0))
+        draw.text((x, y), text, font=font, fill=fill)
+
+    line_y = ty
+    for i, word in enumerate(title_words):
+        color = accent if i == len(title_words) - 1 else text_color
+        _stroke_text(tx, line_y, word, title_font, color)
+        line_y += 78
+
+    _stroke_text(tx, line_y + 10, subtitle, sub_font, accent)
+
+    if time_badge:
+        bx, by = size[0] - 180, size[1] - 70
+        draw.rounded_rectangle((bx, by, bx + 150, by + 44), radius=8, fill=accent)
+        draw.text((bx + 16, by + 6), time_badge, font=badge_font, fill=(255, 255, 255))
+
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    img.save(dest, format="PNG", optimize=True)
+    return dest
+
+
 def compose_thumbnail(meta: dict[str, Any], src: Path, dest: Path, *, size: tuple[int, int] = (1280, 720)) -> Path:
     """Crop to 16:9 (right-biased), dark left scrim, bold left-aligned title + subtitle."""
     img = Image.open(src).convert("RGB")
@@ -180,10 +228,12 @@ def parse_thumbnail_json(raw: str) -> dict[str, Any]:
 
 
 def build_thumbnail_from_meta(meta: dict[str, Any], output_dir: Path) -> Path:
+    out = output_dir / "thumbnail.png"
+    if meta.get("bg_color") or meta.get("render_mode") == "slides":
+        return compose_text_thumbnail(meta, out)
     work = output_dir / "_thumb_work"
     work.mkdir(parents=True, exist_ok=True)
     raw_img = work / "source.jpg"
     fetch_thumbnail_image(meta, raw_img)
-    out = output_dir / "thumbnail.png"
     compose_thumbnail(meta, raw_img, out)
     return out

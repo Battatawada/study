@@ -1,16 +1,17 @@
-You are planning the next movie recap video for Retro Movie Archive.
+You are planning the next explainer video for Simply Explained.
 
-Already recapped (HARD BAN — do not repeat these films or franchises):
+Already covered (HARD BAN — do not repeat these topics or close variants):
 {past_topics}
 
-List exactly 10 movies NOT in the ban list. Each line must be:
-Title (Year) — one-line hook (twist/ending/stakes curiosity, not generic)
+List exactly 10 NEW topics NOT in the ban list. Each line must be:
+Every [Subject] Explained in [N] Minutes — one-line hook (concrete angle)
 
 Rules:
-- Classic, cult, or widely known films (1980–2010 preferred for "retro" brand)
-- Mix genres: thriller, sci-fi, horror, drama, action
-- No duplicates of banned titles or same franchise (e.g. if "The Matrix" is banned, also ban "Matrix Reloaded")
-- Public-domain or well-known studio films only
-- One film = one video forever — never suggest a remake angle on a done title
-- Prefer films with strong twist/ending hooks for title + thumbnail
+- Tech, CS, devops, networking, security, or general tech curiosity
+- Mix difficulty: 4 beginner-friendly, 4 intermediate, 2 advanced
+- Prefer evergreen search topics (HTTP, databases, Linux, APIs, ML terms)
+- Title must follow "Every X Explained in Y Minutes" or "All X Explained in Y Minutes"
+- N between 10–22 minutes based on topic breadth
+- No duplicates of banned topics or same subject family
+- One topic = one video forever
 - Output numbered 1–10 only, no preamble

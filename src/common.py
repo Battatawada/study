@@ -866,30 +866,41 @@ def next_series_type(history: list[dict[str, Any]] | None = None) -> str:
     return "serial_killer" if last == "incident" else "incident"
 
 
-def validate_scene_clips(scene_clips: list[dict[str, Any]], scene_durations: list[dict[str, Any]] | None = None) -> None:
-    """Fail fast when scene mapping would produce a broken recap render."""
+def validate_scene_clips(
+    scene_clips: list[dict[str, Any]],
+    scene_durations: list[dict[str, Any]] | None = None,
+    *,
+    render_mode: str = "slides",
+) -> None:
+    """Fail fast when scene mapping would produce a broken render."""
     if not scene_clips:
         raise ValueError("scene_clips is empty")
 
-    starts = [(float(c.get("start", 0)), float(c.get("end", 0))) for c in scene_clips]
-    unique_starts = len({round(s, 1) for s, _ in starts})
-    if unique_starts < max(3, len(scene_clips) // 4):
-        raise ValueError(
-            f"Scene mapping looks collapsed: only {unique_starts} unique clip starts "
-            f"across {len(scene_clips)} scenes"
-        )
+    if render_mode == "slides":
+        missing = [c for c in scene_clips if not str(c.get("visual_title", "")).strip()]
+        if missing:
+            raise ValueError(f"{len(missing)} scenes missing visual_title for slide render")
+    else:
+        starts = [(float(c.get("start", 0)), float(c.get("end", 0))) for c in scene_clips]
+        unique_starts = len({round(s, 1) for s, _ in starts})
+        if unique_starts < max(3, len(scene_clips) // 4):
+            raise ValueError(
+                f"Scene mapping looks collapsed: only {unique_starts} unique clip starts "
+                f"across {len(scene_clips)} scenes"
+            )
 
-    collapsed = sum(1 for s, e in starts if e - s < 1.0)
-    if collapsed > len(scene_clips) // 3:
-        raise ValueError(
-            f"Too many near-zero clip ranges ({collapsed}/{len(scene_clips)}) — "
-            "scene mapping likely invalid"
-        )
+        collapsed = sum(1 for s, e in starts if e - s < 1.0)
+        if collapsed > len(scene_clips) // 3:
+            raise ValueError(
+                f"Too many near-zero clip ranges ({collapsed}/{len(scene_clips)}) — "
+                "scene mapping likely invalid"
+            )
 
     if scene_durations:
         total_audio = sum(float(d.get("duration_sec", 0)) for d in scene_durations)
-        if total_audio < 300:
-            raise ValueError(f"Narration too short for recap ({total_audio:.1f}s)")
+        min_sec = 480 if render_mode == "slides" else 300
+        if total_audio < min_sec:
+            raise ValueError(f"Narration too short ({total_audio:.1f}s, need ≥{min_sec}s)")
 
 
 def clips_to_scenes(scene_clips: list[dict[str, Any]]) -> list[dict]:
@@ -997,25 +1008,25 @@ def sanitize_seo_title(title: str, max_chars: int = 65) -> str:
 def fallback_seo(topic: str) -> dict:
     """Rich SEO metadata when NotebookLM returns non-JSON."""
     niche = load_json(CONFIG / "niche.json") if (CONFIG / "niche.json").exists() else {}
-    channel = niche.get("name", "Retro Movie Archive")
-    tagline = niche.get("tagline", "Classic films. Condensed. Narrated.")
-    bare = sanitize_seo_title(topic)
-    bare = re.sub(r"(?i)\s*[—\-–]\s*(full movie recap|recap|ending explained)\s*$", "", bare).strip()
-    title = sanitize_seo_title(f"{bare} — Full Movie Recap")
-    if len(title) > 65:
-        title = sanitize_seo_title(f"{bare} Recap")[:65]
+    channel = niche.get("name", "Simply Explained")
+    tagline = niche.get("tagline", "Complex topics. Simple words. Fast.")
+    title = sanitize_seo_title(topic)
+    if "explained" not in title.lower():
+        title = sanitize_seo_title(f"{title} Explained")
+    if len(title) > 70:
+        title = title[:70].rsplit(" ", 1)[0]
     description = (
         f"{tagline}\n\n"
-        f"The complete story of {bare} — every major beat, twist, and the ending explained "
-        f"with real film footage and original narration.\n\n"
-        f"This recap covers:\n"
-        f"• The opening setup and main characters\n"
-        f"• The central conflict and rising action\n"
-        f"• The biggest twists\n"
-        f"• The ending explained\n\n"
+        f"A complete explainer on {topic} — every key concept, definition, and example "
+        f"in one dense video.\n\n"
+        f"This video covers:\n"
+        f"• Core definitions and terminology\n"
+        f"• How each concept connects\n"
+        f"• Real-world examples\n"
+        f"• Key takeaways recap\n\n"
         f"Timestamps coming soon.\n\n"
-        f"Film: {bare}\n\n"
-        f"Subscribe to {channel} for more classic movie recaps."
+        f"Topic: {topic}\n\n"
+        f"Subscribe to {channel} for more explainers."
     )
     return {
         "title": title,

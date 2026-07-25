@@ -1,21 +1,25 @@
-# Retro Movie Archive
+# Simply Explained
 
-Automated **movie recap** pipeline: NotebookLM script from subtitles → edge-tts narration → Oracle VPS ffmpeg clips from real film footage → YouTube upload.
+Automated **tech explainer** pipeline: NotebookLM script → Azure TTS narration → Oracle VPS ffmpeg slide render → YouTube upload.
+
+Style reference: [Codist](https://youtu.be/vVL6NFzr0Rg), [Just Explained](https://youtu.be/2D2Z-eqK0YM), [Infinite Codes](https://youtu.be/Fa_V9fP2tpU).
+
+**See [CHANNEL-OPS.md](CHANNEL-OPS.md) for channel design, operations, and video automation decisions.**
 
 ## Architecture
 
 ```
 GitHub Actions                         Oracle VPS (:8766)
 ────────────────                       ──────────────────
-Phase 1  SRT → NotebookLM → script     /opt/movies/{slug}/
-         + scene_clips.json              movie.mp4 + subtitles.srt
-Phase 2  edge-tts → narration.mp3
-         trigger VPS ─────────────────►  ffmpeg clip + mux
+Phase 1  NotebookLM → script           PIL slide images
+         + scene_clips.json              per concept
+Phase 2  Azure TTS → narration.mp3
+         trigger VPS ─────────────────►  ffmpeg slide + mux
 Poll + download ◄────────────────────  final_video.mp4
 Phase 5  YouTube upload
 ```
 
-**No AI-generated visuals.** Clips are cut from the source film using SRT timestamps.
+**Slide visuals** — dark concept cards with title + bullets. No film clips, no AI video generation.
 
 ## Quick start (local)
 
@@ -26,51 +30,28 @@ python -m venv .venv
 pip install -r requirements.txt
 notebooklm login
 
-# Add SRT for a test film:
-# config\movies\my-film-1999\subtitles.srt
-
+# Dry-run Phase 1 (no NotebookLM):
 python src/phase1_script.py --dry-run --output output
+
+# Full run with a specific topic:
+python src/phase1_script.py --topic-slug http-status-codes --output output
 ```
 
-## VPS movie library
-
-On Oracle VPS, each film lives at:
-
-```
-/opt/movies/inception-2010/
-  movie.mp4
-  subtitles.srt
-```
-
-Add matching entry in `config/movie_queue.json` with `"enabled": true`.
-
-## GitHub secrets
-
-| Secret | Purpose |
-|--------|---------|
-| `NOTEBOOKLM_AUTH_JSON` | Phase 1 NotebookLM |
-| `VPS_WEBHOOK_URL` | `http://<vps-ip>:8766` |
-| `VPS_WEBHOOK_SECRET` | VPS auth bearer token |
-| `YOUTUBE_*` | Phase 5 upload |
-
-## VPS setup
-
-```bash
-sudo bash scripts/vps-setup.sh
-# Then configure .env, systemd service, upload movies to /opt/movies/
-```
-
-See `BOOTSTRAP-PLAN.md` for full checklist.
+Add topics in `config/topic_queue.json`. See `CHANNEL-OPS.md` for the full topic list and publishing order.
 
 ## Pipeline phases
 
 | Phase | Where | Output |
-|-------|-------|--------|
+|-------|--------|--------|
 | 1 | GHA | `scene_clips.json`, `script.txt`, SEO |
-| 2 | GHA | `narration.mp3`, `scene_durations.json` |
-| 3–4 | VPS | `final_video.mp4`, `thumbnail.png` |
+| 2 | GHA | `narration.mp3`, `captions.srt` |
+| 3–4 | VPS | `final_video.mp4` |
 | 5 | GHA | YouTube upload |
 
-## Fork lineage
+## Secrets
 
-Based on [True Crime Documentaries](https://github.com/Battatawada/crime) / Mind In Minutes pipeline — with FlowKit replaced by ffmpeg clip worker.
+Same as before — see `.env.example` for `NOTEBOOKLM_AUTH_JSON`, `AZURE_SPEECH_KEY`, `VPS_WEBHOOK_URL`, YouTube OAuth.
+
+## Pivot note
+
+This repo was **Retro Movie Archive** (film recaps). The movie/SRT pipeline code remains in `vps/phase3_render.py` as `_run_film_clip_render_sync` for legacy runs. New videos use `render_mode: slides`.

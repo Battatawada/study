@@ -1,11 +1,4 @@
 {
-  "movies": [
-    {
-      "slug": "magnolia-1999",
-      "title": "Magnolia",
-      "year": 1999,
-      "enabled": true,
-      "topic": "Magnolia (1999) — Full Movie Recap"
-    }
-  ]
+  "_deprecated": "Use config/topic_queue.json instead. This file is kept for reference only.",
+  "movies": []
 }

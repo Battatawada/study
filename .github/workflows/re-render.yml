@@ -40,23 +40,26 @@ jobs:
 
       - run: pip install httpx
 
-      - name: Verify movie exists on VPS
+      - name: Verify render prerequisites on VPS
         run: |
           python - <<'PY'
           import json, os, sys
           import httpx
 
-          slug = json.load(open("output/metadata.json"))["movie_slug"]
+          meta = json.load(open("output/metadata.json"))
+          render_mode = meta.get("render_mode", "slides")
+          if render_mode == "slides":
+              print("slide render — no movie library required")
+              sys.exit(0)
+
+          slug = meta.get("movie_slug") or meta.get("topic_slug")
           base = os.environ["VPS_URL"].rstrip("/")
           headers = {"Authorization": f"Bearer {os.environ['VPS_SECRET']}"}
           r = httpx.get(f"{base}/movies", headers=headers, timeout=60.0)
           r.raise_for_status()
           slugs = {m["slug"] for m in r.json().get("movies", [])}
           if slug not in slugs:
-              sys.exit(
-                  f"Movie {slug!r} not on VPS. Upload it first with "
-                  f"scripts/upload-movie-to-vps.ps1"
-              )
+              sys.exit(f"Movie {slug!r} not on VPS.")
           print(f"movie on VPS: {slug}")
           PY
 

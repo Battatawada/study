@@ -1,0 +1,139 @@
+{
+  "topics": [
+    {
+      "slug": "http-status-codes",
+      "title": "Every HTTP Status Code",
+      "minutes": 14,
+      "enabled": true,
+      "topic": "Every HTTP Status Code Explained in 14 Minutes",
+      "category": "web",
+      "hook_angle": "Open on 418 I'm a Teapot — the joke status code that became real"
+    },
+    {
+      "slug": "data-structures",
+      "title": "Every Data Structure",
+      "minutes": 22,
+      "enabled": true,
+      "topic": "Every Data Structure Simply Explained in 22 Minutes",
+      "category": "cs",
+      "hook_angle": "Open on arrays — the one structure every program secretly depends on"
+    },
+    {
+      "slug": "linux-commands",
+      "title": "Every Essential Linux Command",
+      "minutes": 16,
+      "enabled": true,
+      "topic": "Every Essential Linux Command Explained in 16 Minutes",
+      "category": "devops",
+      "hook_angle": "Open on rm -rf — the command that ends careers"
+    },
+    {
+      "slug": "networking-protocols",
+      "title": "Every Networking Protocol",
+      "minutes": 18,
+      "enabled": true,
+      "topic": "Every Networking Protocol Explained in 18 Minutes",
+      "category": "networking",
+      "hook_angle": "Open on what happens in the 2 seconds after you hit Enter in the browser"
+    },
+    {
+      "slug": "database-types",
+      "title": "Every Database Type",
+      "minutes": 15,
+      "enabled": true,
+      "topic": "Every Database Type Explained in 15 Minutes",
+      "category": "data",
+      "hook_angle": "Open on why Instagram stores likes differently than bank transactions"
+    },
+    {
+      "slug": "cyber-attacks",
+      "title": "Every Cyber Attack",
+      "minutes": 17,
+      "enabled": true,
+      "topic": "Every Cyber Attack Explained in 17 Minutes",
+      "category": "security",
+      "hook_angle": "Open on phishing — the attack that still works on CEOs"
+    },
+    {
+      "slug": "cloud-services",
+      "title": "Every Cloud Service",
+      "minutes": 15,
+      "enabled": true,
+      "topic": "Every Cloud Service Explained in 15 Minutes",
+      "category": "cloud",
+      "hook_angle": "Open on why AWS has 200+ services and you only need five"
+    },
+    {
+      "slug": "programming-paradigms",
+      "title": "Every Programming Paradigm",
+      "minutes": 13,
+      "enabled": true,
+      "topic": "Every Programming Paradigm Explained in 13 Minutes",
+      "category": "cs",
+      "hook_angle": "Open on why Python and C feel like different languages even though both 'code'"
+    },
+    {
+      "slug": "file-formats",
+      "title": "Every File Format",
+      "minutes": 12,
+      "enabled": true,
+      "topic": "Every File Format Explained in 12 Minutes",
+      "category": "tech",
+      "hook_angle": "Open on a JPEG — 90% smaller than raw pixels, here's how"
+    },
+    {
+      "slug": "wifi-standards",
+      "title": "Every Wi-Fi Standard",
+      "minutes": 11,
+      "enabled": true,
+      "topic": "Every Wi-Fi Standard Explained in 11 Minutes",
+      "category": "networking",
+      "hook_angle": "Open on Wi-Fi 7 vs your router sticker — what the numbers actually mean"
+    },
+    {
+      "slug": "cpu-architectures",
+      "title": "Every CPU Architecture",
+      "minutes": 14,
+      "enabled": true,
+      "topic": "Every CPU Architecture Explained in 14 Minutes",
+      "category": "hardware",
+      "hook_angle": "Open on ARM vs x86 — why your phone chip beats your laptop on battery"
+    },
+    {
+      "slug": "api-types",
+      "title": "Every Type of API",
+      "minutes": 16,
+      "enabled": true,
+      "topic": "Every Type of API Explained in 16 Minutes",
+      "category": "web",
+      "hook_angle": "Open on the API call behind every 'Sign in with Google' button"
+    },
+    {
+      "slug": "machine-learning-terms",
+      "title": "Every Machine Learning Term",
+      "minutes": 20,
+      "enabled": true,
+      "topic": "All Machine Learning Terms Explained in 20 Minutes",
+      "category": "ai",
+      "hook_angle": "Open on the difference between AI, ML, and deep learning in one sentence"
+    },
+    {
+      "slug": "operating-systems",
+      "title": "Every Operating System",
+      "minutes": 15,
+      "enabled": true,
+      "topic": "Every Operating System Explained in 15 Minutes",
+      "category": "tech",
+      "hook_angle": "Open on Red Star OS — North Korea's Mac clone that spies on you"
+    },
+    {
+      "slug": "encryption-methods",
+      "title": "Every Encryption Method",
+      "minutes": 14,
+      "enabled": true,
+      "topic": "Every Encryption Method Explained in 14 Minutes",
+      "category": "security",
+      "hook_angle": "Open on HTTPS — the padlock icon is doing more than you think"
+    }
+  ]
+}

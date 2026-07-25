@@ -1,24 +1,37 @@
-"""ffmpeg clip extraction + final recap render on VPS."""
+"""ffmpeg slide rendering + final explainer video assembly on VPS."""
 
 from __future__ import annotations
 
 import json
 import os
 import subprocess
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+# Allow importing slide_builder from same package
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from slide_builder import render_slide  # noqa: E402
+
 
 FPS = 30
 BG_COLOR = "0x000000"
-FFMPEG_THREADS = os.environ.get("FFMPEG_THREADS", "1")
+FFMPEG_THREADS = os.environ.get("FFMPEG_THREADS", "2")
+X264_PRESET = os.environ.get("FFMPEG_PRESET", "ultrafast")
+CLIP_EXTRACT_TIMEOUT_SEC = int(os.environ.get("CLIP_EXTRACT_TIMEOUT_SEC", "1200"))
+FFMPEG_LONG_TIMEOUT_SEC = int(os.environ.get("FFMPEG_LONG_TIMEOUT_SEC", "7200"))
 
 
-def _run(cmd: list[str]) -> None:
+def _run(cmd: list[str], *, timeout: int | None = None) -> None:
     if cmd[:2] == ["ffmpeg", "-y"] and "-threads" not in cmd:
         cmd = ["ffmpeg", "-y", "-threads", FFMPEG_THREADS, *cmd[2:]]
-    result = subprocess.run(cmd, capture_output=True, text=True)
+    result = subprocess.run(
+        cmd,
+        capture_output=True,
+        text=True,
+        timeout=timeout or CLIP_EXTRACT_TIMEOUT_SEC,
+    )
     if result.returncode != 0:
         raise RuntimeError(result.stderr or result.stdout or f"Command failed: {' '.join(cmd)}")
 
@@ -45,9 +58,9 @@ def _concat_video_segments(list_file: Path, dest: Path) -> None:
     _run([
         "ffmpeg", "-y",
         "-f", "concat", "-safe", "0", "-i", str(list_file),
-        "-an", "-c:v", "libx264", "-pix_fmt", "yuv420p",
+        "-an", "-c:v", "libx264", "-preset", X264_PRESET, "-pix_fmt", "yuv420p",
         str(dest),
-    ])
+    ], timeout=FFMPEG_LONG_TIMEOUT_SEC)
 
 
 def _probe_duration(path: Path) -> float:
@@ -60,9 +73,13 @@ def _probe_duration(path: Path) -> float:
         ],
         capture_output=True,
         text=True,
-        check=True,
     )
-    return max(0.5, float(result.stdout.strip()))
+    if result.returncode != 0:
+        return 0.0
+    try:
+        return max(0.5, float(result.stdout.strip()))
+    except ValueError:
+        return 0.0
 
 
 def _sec_to_ffmpeg(seconds: float) -> str:
@@ -96,11 +113,11 @@ def extract_clip(
     start = _sec_to_ffmpeg(start_sec)
     end = _sec_to_ffmpeg(end_sec)
 
-    encode_args = [
-        "-an", "-vf", vf,
-        "-t", str(output_duration),
-        "-c:v", "libx264", "-pix_fmt", "yuv420p",
+    encode_tail = [
+        "-an",
+        "-c:v", "libx264", "-preset", X264_PRESET, "-pix_fmt", "yuv420p",
         "-video_track_timescale", "30000",
+        "-t", str(output_duration),
         str(dest),
     ]
     if source_dur >= output_duration:
@@ -108,18 +125,35 @@ def extract_clip(
             "ffmpeg", "-y",
             "-ss", start, "-to", end,
             "-i", str(movie),
-            *encode_args,
+            "-vf", vf,
+            *encode_tail,
         ])
         return
 
-    # Source shorter than narration — loop then trim
-    _run([
-        "ffmpeg", "-y",
-        "-ss", start, "-to", end,
-        "-stream_loop", "-1",
-        "-i", str(movie),
-        *encode_args,
-    ])
+    # Source shorter than narration — encode scaled segment, then loop via stream copy.
+    seg = dest.with_suffix(".seg.mp4")
+    try:
+        _run([
+            "ffmpeg", "-y",
+            "-ss", start,
+            "-i", str(movie),
+            "-t", str(source_dur),
+            "-an", "-vf", vf,
+            "-c:v", "libx264", "-preset", X264_PRESET, "-pix_fmt", "yuv420p",
+            "-movflags", "+faststart",
+            str(seg),
+        ])
+        _run([
+            "ffmpeg", "-y",
+            "-stream_loop", "-1",
+            "-i", str(seg),
+            "-an",
+            "-t", str(output_duration),
+            "-c", "copy",
+            str(dest),
+        ])
+    finally:
+        seg.unlink(missing_ok=True)
 
 
 def extract_thumbnail(movie: Path, at_sec: float, dest: Path) -> None:
@@ -289,6 +323,169 @@ def _build_scene_dynamic_bg(
     return out
 
 
+def _slide_to_video(slide: Path, duration: float, dest: Path, *, fps: int = FPS) -> None:
+    """Convert a slide PNG to a video segment matching narration duration."""
+    _run([
+        "ffmpeg", "-y",
+        "-loop", "1", "-i", str(slide),
+        "-f", "lavfi", "-i", f"anullsrc=r=44100:cl=2",
+        "-t", str(duration),
+        "-vf", f"scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2:color={BG_COLOR},fps={fps}",
+        "-c:v", "libx264", "-preset", X264_PRESET, "-pix_fmt", "yuv420p",
+        "-c:a", "aac", "-shortest",
+        str(dest),
+    ])
+
+
+def _run_slide_render_sync(
+    run_id: str,
+    *,
+    runs_dir: Path,
+) -> None:
+    """Render teaching video from slide specs + narration audio."""
+    run_path = runs_dir / run_id
+    state_path = run_path / "state.json"
+    inputs = run_path / "inputs"
+    work = run_path / "work"
+    out_dir = run_path / "output"
+    work.mkdir(parents=True, exist_ok=True)
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    state = json.loads(state_path.read_text(encoding="utf-8"))
+    state["status"] = "running"
+    state["phase"] = "slides"
+    _write_state(state_path, state)
+
+    meta = json.loads((inputs / "metadata.json").read_text(encoding="utf-8"))
+    pipeline_path = inputs / "pipeline.json"
+    pipeline: dict[str, Any] = {}
+    if pipeline_path.exists():
+        pipeline = json.loads(pipeline_path.read_text(encoding="utf-8"))
+
+    scene_clips = json.loads((inputs / "scene_clips.json").read_text(encoding="utf-8"))
+    scenes = scene_clips.get("scenes", scene_clips if isinstance(scene_clips, list) else [])
+    durations = json.loads((inputs / "scene_durations.json").read_text(encoding="utf-8"))
+    dur_by_id = {int(d["scene_id"]): float(d["duration_sec"]) for d in durations}
+
+    bg_color = pipeline.get("slide_bg_color", "#0f0f1a")
+    channel_name = meta.get("niche", "Simply Explained")
+
+    clip_paths: list[Path] = []
+    total = len(scenes)
+    state["total_scenes"] = total
+
+    for i, scene in enumerate(scenes):
+        sid = int(scene["scene_id"])
+        narr_dur = dur_by_id.get(sid, 5.0)
+        clip_path = work / f"clip_{sid:02d}.mp4"
+        slide_path = work / f"slide_{sid:02d}.png"
+
+        if not slide_path.exists():
+            render_slide(scene, slide_path, bg_color=bg_color, channel_name=channel_name)
+
+        if clip_path.exists():
+            try:
+                _assert_duration(clip_path, narr_dur, f"slide clip {sid}")
+                clip_paths.append(clip_path)
+                continue
+            except RuntimeError:
+                clip_path.unlink(missing_ok=True)
+
+        state["current_scene"] = sid
+        state["clips_ready"] = len(clip_paths)
+        _write_state(state_path, state)
+
+        _slide_to_video(slide_path, narr_dur, clip_path)
+        _assert_duration(clip_path, narr_dur, f"slide clip {sid}")
+        clip_paths.append(clip_path)
+        state["clips_ready"] = len(clip_paths)
+        state["completed"] = [int(s["scene_id"]) for s in scenes[: i + 1]]
+        _write_state(state_path, state)
+
+    state["phase"] = "concat"
+    _write_state(state_path, state)
+
+    list_file = work / "concat.txt"
+    with list_file.open("w", encoding="utf-8") as f:
+        for p in clip_paths:
+            f.write(f"file '{p.resolve().as_posix()}'\n")
+
+    video_only = work / "video_only.mp4"
+    expected_video = _expected_video_duration(dur_by_id)
+    if not (video_only.exists() and _probe_duration(video_only) >= expected_video * 0.95):
+        video_only.unlink(missing_ok=True)
+        _concat_video_segments(list_file, video_only)
+    _assert_duration(video_only, expected_video, "slide concat")
+
+    narration = inputs / "narration.mp3"
+    end_audio = inputs / "end_card.mp3"
+    audio_paths = [narration]
+    end_dur = 0.0
+    if end_audio.exists():
+        end_meta_path = inputs / "end_card.json"
+        if end_meta_path.exists():
+            end_meta = json.loads(end_meta_path.read_text(encoding="utf-8"))
+            if end_meta.get("enabled", True):
+                end_dur = float(end_meta.get("duration_sec", _probe_duration(end_audio)))
+                end_clip = work / "end_card.mp4"
+                _run([
+                    "ffmpeg", "-y", "-f", "lavfi",
+                    "-i", f"color=c={BG_COLOR}:s=1920x1080:d={end_dur}",
+                    "-pix_fmt", "yuv420p", str(end_clip),
+                ])
+                with (work / "concat_end.txt").open("w", encoding="utf-8") as f:
+                    f.write(f"file '{video_only.resolve().as_posix()}'\n")
+                    f.write(f"file '{end_clip.resolve().as_posix()}'\n")
+                combined = work / "video_with_end.mp4"
+                _concat_video_segments(work / "concat_end.txt", combined)
+                video_only = combined
+                audio_paths.append(end_audio)
+
+    if len(audio_paths) == 1:
+        voice_audio = narration
+    else:
+        full_audio = work / "full_narration.mp3"
+        with (work / "audio_concat.txt").open("w", encoding="utf-8") as f:
+            for p in audio_paths:
+                f.write(f"file '{p.resolve().as_posix()}'\n")
+        _run([
+            "ffmpeg", "-y", "-f", "concat", "-safe", "0",
+            "-i", str(work / "audio_concat.txt"), "-c", "copy", str(full_audio),
+        ])
+        voice_audio = full_audio
+
+    video_dur = _probe_duration(video_only)
+    audio_in = str(_mix_bg_music(voice_audio, inputs, work, video_dur, scene_durations=durations))
+
+    state["phase"] = "mux"
+    _write_state(state_path, state)
+
+    final = out_dir / "final_video.mp4"
+    expected_final = _probe_duration(voice_audio)
+    _run([
+        "ffmpeg", "-y", "-i", str(video_only), "-i", audio_in,
+        "-map", "0:v:0", "-map", "1:a:0",
+        "-c:v", "libx264", "-preset", X264_PRESET, "-c:a", "aac", "-pix_fmt", "yuv420p",
+        str(final),
+    ], timeout=FFMPEG_LONG_TIMEOUT_SEC)
+    _assert_duration(final, expected_final, "final mux")
+
+    thumb_path = out_dir / "thumbnail.png"
+    uploaded_thumb = inputs / "thumbnail.png"
+    if uploaded_thumb.exists() and uploaded_thumb.stat().st_size > 5000:
+        thumb_path.write_bytes(uploaded_thumb.read_bytes())
+    elif scenes:
+        first_slide = work / "slide_01.png"
+        if first_slide.exists():
+            thumb_path.write_bytes(first_slide.read_bytes())
+
+    state["status"] = "complete"
+    state["phase"] = "done"
+    state["clips_ready"] = total
+    state["error"] = None
+    _write_state(state_path, state)
+
+
 async def run_render_async(
     run_id: str,
     *,
@@ -301,6 +498,30 @@ async def run_render_async(
 
 
 def _run_render_sync(
+    run_id: str,
+    *,
+    runs_dir: Path,
+    movies_dir: Path,
+) -> None:
+    inputs = runs_dir / run_id / "inputs"
+    meta_path = inputs / "metadata.json"
+    render_mode = "slides"
+    if meta_path.exists():
+        meta = json.loads(meta_path.read_text(encoding="utf-8"))
+        render_mode = meta.get("render_mode", "slides")
+        clips_path = inputs / "scene_clips.json"
+        if clips_path.exists():
+            clips_data = json.loads(clips_path.read_text(encoding="utf-8"))
+            render_mode = clips_data.get("render_mode", render_mode)
+
+    if render_mode == "slides":
+        _run_slide_render_sync(run_id, runs_dir=runs_dir)
+        return
+
+    _run_film_clip_render_sync(run_id, runs_dir=runs_dir, movies_dir=movies_dir)
+
+
+def _run_film_clip_render_sync(
     run_id: str,
     *,
     runs_dir: Path,
@@ -336,17 +557,31 @@ def _run_render_sync(
 
     for i, scene in enumerate(scenes):
         sid = int(scene["scene_id"])
+        narr_dur = dur_by_id.get(sid, 5.0)
+        clip_path = work / f"clip_{sid:02d}.mp4"
+
+        if clip_path.exists():
+            try:
+                _assert_duration(clip_path, narr_dur, f"clip {sid}")
+                clip_paths.append(clip_path)
+                state["current_scene"] = sid
+                state["clips_ready"] = len(clip_paths)
+                state["completed"] = [int(s["scene_id"]) for s in scenes[: i + 1]]
+                _write_state(state_path, state)
+                continue
+            except RuntimeError:
+                clip_path.unlink(missing_ok=True)
+
         state["current_scene"] = sid
-        state["clips_ready"] = i
+        state["clips_ready"] = len(clip_paths)
         _write_state(state_path, state)
 
         start = float(scene["start"])
         end = float(scene["end"])
-        narr_dur = dur_by_id.get(sid, 5.0)
-        clip_path = work / f"clip_{sid:02d}.mp4"
         extract_clip(movie, start, end, clip_path, output_duration=narr_dur)
+        _assert_duration(clip_path, narr_dur, f"clip {sid}")
         clip_paths.append(clip_path)
-        state["clips_ready"] = i + 1
+        state["clips_ready"] = len(clip_paths)
         state["completed"] = [int(s["scene_id"]) for s in scenes[: i + 1]]
         _write_state(state_path, state)
 
@@ -359,12 +594,11 @@ def _run_render_sync(
             f.write(f"file '{p.resolve().as_posix()}'\n")
 
     video_only = work / "video_only.mp4"
-    _concat_video_segments(list_file, video_only)
-    _assert_duration(
-        video_only,
-        _expected_video_duration(dur_by_id),
-        "clip concat",
-    )
+    expected_video = _expected_video_duration(dur_by_id)
+    if not (video_only.exists() and _probe_duration(video_only) >= expected_video * 0.95):
+        video_only.unlink(missing_ok=True)
+        _concat_video_segments(list_file, video_only)
+    _assert_duration(video_only, expected_video, "clip concat")
 
     narration = inputs / "narration.mp3"
     end_audio = inputs / "end_card.mp3"
@@ -419,9 +653,9 @@ def _run_render_sync(
     _run([
         "ffmpeg", "-y", "-i", str(video_only), "-i", audio_in,
         "-map", "0:v:0", "-map", "1:a:0",
-        "-c:v", "libx264", "-c:a", "aac", "-pix_fmt", "yuv420p",
+        "-c:v", "libx264", "-preset", X264_PRESET, "-c:a", "aac", "-pix_fmt", "yuv420p",
         str(final),
-    ])
+    ], timeout=FFMPEG_LONG_TIMEOUT_SEC)
     _assert_duration(final, expected_final, "final mux")
 
     thumb_path = out_dir / "thumbnail.png"

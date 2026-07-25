@@ -1,16 +1,17 @@
-Analyze the competitor movie-recap sources in this notebook (channels + sample videos).
+Analyze the competitor tech explainer sources in this notebook (channels + sample videos).
 
 IMPORTANT: For each YouTube video source, use its **auto-generated or uploaded subtitles/transcript** — not guesses. Base pacing and hook notes on what the captions actually show.
 
 Extract a concise MASTER STYLE BRIEF (max 12 bullets):
-- Video length and pacing (avg scene length, cuts per minute feel)
-- Narration tone, POV, spoiler style
+- Video length and pacing (WPM feel, concepts per minute)
+- Narration tone — teacher vs encyclopedia vs curiosity
 - Hook structure in first 30 seconds (from transcript)
-- Act structure: setup → twists → ending delivery
-- Title + thumbnail click patterns (from channel/video metadata in sources)
+- Section structure: label → definition → example pattern
+- Title + thumbnail click patterns
 - Description / tag / hashtag patterns
-- Background music feel (see music reference source if present)
-- Retention tricks that show up in the transcripts
+- Background music feel (minimal bed under voice)
+- How concepts are introduced and connected
+- Visual style cues (text on dark bg, diagrams, code snippets)
 - What to AVOID copying
 
-Bullets only. Actionable for Retro Movie Archive (muted real clips + voiceover + YouTube .srt captions, no burned-in karaoke).
+Bullets only. Actionable for Simply Explained (slide visuals + AI voiceover + YouTube .srt captions).

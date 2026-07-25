@@ -74,9 +74,13 @@ def main() -> None:
     if missing:
         sys.exit(f"Missing required inputs for VPS: {sorted(missing)}")
 
-    scene_clips = load_json(args.input / "scene_clips.json").get("scenes", [])
+    scene_clips_data = load_json(args.input / "scene_clips.json")
+    scene_clips = scene_clips_data.get("scenes", [])
     scene_durations = load_json(args.input / "scene_durations.json")
-    validate_scene_clips(scene_clips, scene_durations)
+    render_mode = scene_clips_data.get("render_mode", "slides")
+    meta = load_json(args.input / "metadata.json") if (args.input / "metadata.json").exists() else {}
+    render_mode = meta.get("render_mode", render_mode)
+    validate_scene_clips(scene_clips, scene_durations, render_mode=render_mode)
 
     with httpx.Client(timeout=300.0) as client:
         # Wipe any stale run dir so /generate cannot return already_complete from a bad prior render.

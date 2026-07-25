@@ -222,6 +222,12 @@ async def generate(
         "completed": [],
         "error": None,
     }
+    if state_path.exists():
+        prev = json.loads(state_path.read_text(encoding="utf-8"))
+        if prev.get("status") in ("failed", "running") and prev.get("clips_ready", 0) > 0:
+            initial["clips_ready"] = int(prev["clips_ready"])
+            initial["completed"] = list(prev.get("completed") or [])
+            initial["current_scene"] = int(prev.get("current_scene") or 0)
     state_path.parent.mkdir(parents=True, exist_ok=True)
     state_path.write_text(json.dumps(initial, indent=2), encoding="utf-8")
 

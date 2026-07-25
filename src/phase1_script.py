@@ -1,13 +1,11 @@
 #!/usr/bin/env python3
 """
-Phase 1 — Movie recap script + subtitle scene map
+Phase 1 — Teaching explainer script + visual scene map
 
-  1. Pick next movie from queue (VPS library)
-  2. Load SRT transcript (VPS API or local)
-  3. NotebookLM: style brief → hook package → recap script (multi-part)
-  4. NotebookLM: map each narration scene → subtitle line range
-  5. Resolve timestamps from SRT (ground truth)
-  6. YouTube SEO (locked title) + thumbnail brief
+  1. Pick next topic from queue
+  2. NotebookLM: style brief → hook package → explainer script (multi-part)
+  3. NotebookLM: map each narration scene → slide visual spec
+  4. YouTube SEO (locked title) + thumbnail brief
 """
 
 from __future__ import annotations
@@ -175,17 +173,21 @@ def fetch_srt_text(movie_slug: str, pipeline: dict[str, Any]) -> str:
     return content
 
 
-def pick_movie_from_queue(history: list[dict[str, Any]]) -> dict[str, Any]:
-    queue = load_json(CONFIG / "movie_queue.json")
-    movies = [m for m in queue.get("movies", []) if m.get("enabled", True)]
-    for movie in movies:
-        label = f"{movie.get('title', movie['slug'])} ({movie.get('year', '')})"
-        topic = movie.get("topic") or label
-        if topic_overlaps_history(topic, history) or topic_overlaps_history(label, history):
-            print(f"  Skipping queued movie (already done): {label}", flush=True)
+def pick_topic_from_queue(history: list[dict[str, Any]]) -> dict[str, Any]:
+    queue = load_json(CONFIG / "topic_queue.json")
+    topics = [t for t in queue.get("topics", []) if t.get("enabled", True)]
+    for topic in topics:
+        label = topic.get("topic") or topic.get("title", topic["slug"])
+        if topic_overlaps_history(label, history) or topic_overlaps_history(topic.get("slug", ""), history):
+            print(f"  Skipping queued topic (already done): {label}", flush=True)
             continue
-        return movie
-    raise RuntimeError("No enabled movies left in movie_queue.json (all done or disabled).")
+        return topic
+    raise RuntimeError("No enabled topics left in topic_queue.json (all done or disabled).")
+
+
+def pick_movie_from_queue(history: list[dict[str, Any]]) -> dict[str, Any]:
+    """Legacy alias — redirects to topic queue."""
+    return pick_topic_from_queue(history)
 
 
 def pick_topic_from_notebook(
@@ -231,6 +233,107 @@ def _match_queue_slug(topic: str, movies: list[dict[str, Any]]) -> str | None:
         if slug.replace("-", "") in norm:
             return slug
     return None
+
+
+def build_visual_mapping_prompt(
+    segments: list[str],
+    pipeline: dict[str, Any],
+    *,
+    scene_id_start: int = 1,
+) -> str:
+    seg_chars = int(pipeline.get("scene_map_segment_chars", 80))
+    scene_id_end = scene_id_start + len(segments) - 1
+    scene_lines = "\n".join(
+        f"Scene {scene_id_start + i}: {seg[:seg_chars]}{'...' if len(seg) > seg_chars else ''}"
+        for i, seg in enumerate(segments)
+    )
+    return (
+        load_prompt("visual_mapping.txt")
+        .replace("{scene_count}", str(len(segments)))
+        .replace("{scene_id_start}", str(scene_id_start))
+        .replace("{scene_id_end}", str(scene_id_end))
+        .replace("{narration_scenes}", scene_lines)
+    )
+
+
+def collect_visual_mapping(
+    notebook_id: str,
+    segments: list[str],
+    pipeline: dict[str, Any],
+    *,
+    source_ids: list[str] | None = None,
+) -> tuple[list[dict[str, Any]], str]:
+    """Map narration scenes to slide visual specs."""
+    batch_size = max(1, int(pipeline.get("scene_map_batch_size", 12)))
+    all_mapping: list[dict[str, Any]] = []
+    raw_parts: list[str] = []
+    scene_id_start = 1
+    total_batches = (len(segments) + batch_size - 1) // batch_size
+
+    for batch_start in range(0, len(segments), batch_size):
+        batch_segments = segments[batch_start : batch_start + batch_size]
+        batch_num = batch_start // batch_size + 1
+        scene_id_end = scene_id_start + len(batch_segments) - 1
+
+        if total_batches > 1:
+            print(
+                f"  Visual map batch {batch_num}/{total_batches} "
+                f"(scenes {scene_id_start}-{scene_id_end})...",
+                flush=True,
+            )
+
+        map_prompt = build_visual_mapping_prompt(batch_segments, pipeline, scene_id_start=scene_id_start)
+        map_raw = ask(
+            notebook_id,
+            map_prompt,
+            new=True,
+            request_timeout=300,
+            source_ids=source_ids,
+        )
+        raw_parts.append(map_raw)
+        try:
+            batch_mapping = parse_scene_mapping(map_raw, len(batch_segments))
+        except ValueError:
+            print("  Retrying visual map batch with stricter JSON prompt...", flush=True)
+            retry = map_prompt + "\n\nReply with ONLY raw JSON. No markdown."
+            map_raw = ask(notebook_id, retry, new=True, request_timeout=300, source_ids=source_ids)
+            raw_parts[-1] = map_raw
+            batch_mapping = parse_scene_mapping(map_raw, len(batch_segments))
+
+        for i, row in enumerate(batch_mapping):
+            normalized = dict(row)
+            normalized["scene_id"] = scene_id_start + i
+            all_mapping.append(normalized)
+
+        scene_id_start += len(batch_segments)
+
+    return all_mapping, "\n\n---\n\n".join(raw_parts)
+
+
+def resolve_scene_visuals(
+    mapping: list[dict[str, Any]],
+    segments: list[str],
+    pipeline: dict[str, Any],
+) -> list[dict[str, Any]]:
+    default_accent = pipeline.get("slide_accent_default", "#3B82F6")
+    out: list[dict[str, Any]] = []
+
+    for i, row in enumerate(mapping):
+        sid = int(row.get("scene_id", i + 1))
+        text = segments[i] if i < len(segments) else ""
+        bullets = row.get("visual_bullets", [])
+        if isinstance(bullets, str):
+            bullets = [bullets]
+        out.append({
+            "scene_id": sid,
+            "narration": text,
+            "visual_title": str(row.get("visual_title", f"Concept {sid}")).strip(),
+            "visual_bullets": [str(b).strip() for b in bullets if str(b).strip()][:3],
+            "visual_type": row.get("visual_type", "concept_card"),
+            "accent_color": row.get("accent_color", default_accent),
+            "music_mood": row.get("music_mood", "calm"),
+        })
+    return out
 
 
 def build_scene_mapping_prompt(
@@ -281,7 +384,7 @@ def build_scene_mapping_prompt(
 
 
 def build_story_generation_prompt(
-    movie_title: str,
+    topic_title: str,
     duration: int,
     continue_word: str,
     target_words: int,
@@ -298,7 +401,7 @@ def build_story_generation_prompt(
     def render() -> str:
         return (
             load_prompt("story_generation.txt")
-            .replace("{movie_title}", movie_title)
+            .replace("{topic_title}", topic_title)
             .replace("{duration_minutes}", str(duration))
             .replace("{continue_keyword}", continue_word)
             .replace("{target_words}", str(target_words))
@@ -485,11 +588,11 @@ def _default_style_notes() -> str:
     if playbook.exists():
         return playbook.read_text(encoding="utf-8")[:8000]
     return (
-        "- Hook in first 10s with stakes + curiosity\n"
-        "- Calm confident narrator; spoil full plot\n"
-        "- Thumbnail: one face, 2–4 word title, RECAP/EXPLAINED accent\n"
-        "- Subtle cinematic ambient bed under voice (~12% volume)\n"
-        "- SEO title: Movie Name + Recap / Ending Explained"
+        "- Hook in first 10s with concrete example + promise\n"
+        "- Fast teacher narrator; 170–185 WPM glossary style\n"
+        "- Thumbnail: dark bg, topic name, EXPLAINED chip, time badge\n"
+        "- Subtle lo-fi bed under voice (~8% volume)\n"
+        "- SEO title: Every X Explained in Y Minutes"
     )
 
 
@@ -573,91 +676,91 @@ def _sec_to_ffmpeg(seconds: float) -> str:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Phase 1: movie recap script + scene map")
+    parser = argparse.ArgumentParser(description="Phase 1: teaching explainer script + visual map")
     parser.add_argument("--output", type=Path, default=Path("output"))
     parser.add_argument("--pipeline", type=Path, default=CONFIG / "pipeline.json")
-    parser.add_argument("--movie-slug", default=None, help="Override queue pick")
+    parser.add_argument("--topic-slug", default=None, help="Override queue pick")
+    parser.add_argument("--movie-slug", default=None, help="Legacy alias for --topic-slug")
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
+
+    topic_slug_arg = args.topic_slug or args.movie_slug
 
     out = args.output
     out.mkdir(parents=True, exist_ok=True)
     run_id = new_run_id()
     pipeline = load_json(args.pipeline) if args.pipeline.exists() else {}
     niche = load_json(CONFIG / "niche.json") if (CONFIG / "niche.json").exists() else {}
-    duration = int(pipeline.get("duration_minutes", 12))
-    wpm = int(pipeline.get("words_per_minute", 145))
+    duration = int(pipeline.get("duration_minutes", 14))
+    wpm = int(pipeline.get("words_per_minute", 175))
     continue_word = pipeline.get("continue_keyword", "Next")
+    render_mode = pipeline.get("render_mode", niche.get("render_mode", "slides"))
     target_words = duration * wpm
     history = load_topic_history()
     thumbnail_meta = None
 
     if args.dry_run:
-        movie_slug = "example-movie-1999"
-        topic = "Example Movie (1999) — demo recap"
+        topic_slug = "http-status-codes"
+        topic = "Every HTTP Status Code Explained in 14 Minutes"
         script = (
-            "In a quiet town, nothing seems wrong until one discovery changes everything. "
-            "This is the story of how one choice spiraled into chaos."
-        )
-        blocks = parse_srt(
-            "1\n00:00:01,000 --> 00:00:04,000\nHello world.\n\n"
-            "2\n00:00:05,000 --> 00:00:08,000\nSomething happens.\n"
+            "HTTP 404. This is the status code you see when a page doesn't exist. "
+            "It means the server understood your request, but the resource simply isn't there."
         )
         segments = split_script_for_scenes(clean_script_for_tts(script), 2)
         mapping = [
-            {"scene_id": 1, "subtitle_start": 1, "subtitle_end": 1},
-            {"scene_id": 2, "subtitle_start": 2, "subtitle_end": 2},
+            {
+                "scene_id": 1,
+                "visual_title": "HTTP 404",
+                "visual_bullets": ["Page not found", "Client error"],
+                "visual_type": "concept_card",
+                "accent_color": "#EF4444",
+                "music_mood": "calm",
+            },
+            {
+                "scene_id": 2,
+                "visual_title": "Status Codes",
+                "visual_bullets": ["Server response", "3-digit number"],
+                "visual_type": "concept_card",
+                "accent_color": "#3B82F6",
+                "music_mood": "focus",
+            },
         ]
-        scene_clips = resolve_scene_clips(mapping, segments, blocks, pipeline)
+        scene_clips = resolve_scene_visuals(mapping, segments, pipeline)
         seo = fallback_seo(topic)
         style_notes = _default_style_notes()
         hook_pkg = {
-            "title": f"{topic} — Full Movie Recap",
+            "title": topic,
             "cold_open": script[:400],
-            "thumbnail_text": "FULL RECAP",
-            "overlay_subtitle": "RECAP",
+            "thumbnail_text": "HTTP CODES",
+            "overlay_subtitle": "EXPLAINED",
+            "icon_emoji": "🌐",
         }
         locked_title = hook_pkg["title"]
         story_parts = 1
         notebook_id = ""
     else:
-        if args.movie_slug:
-            queue = load_json(CONFIG / "movie_queue.json")
-            movie = next((m for m in queue.get("movies", []) if m["slug"] == args.movie_slug), None)
-            if not movie:
-                sys.exit(f"Unknown --movie-slug: {args.movie_slug}")
-            topic = movie.get("topic") or f"{movie['title']} ({movie['year']})"
-            movie_slug = movie["slug"]
+        if topic_slug_arg:
+            queue = load_json(CONFIG / "topic_queue.json")
+            entry = next((t for t in queue.get("topics", []) if t["slug"] == topic_slug_arg), None)
+            if not entry:
+                sys.exit(f"Unknown --topic-slug: {topic_slug_arg}")
+            topic_slug = entry["slug"]
+            topic = entry.get("topic") or entry.get("title", topic_slug)
+            duration = int(entry.get("minutes", duration))
+            target_words = duration * wpm
         else:
-            movie = pick_movie_from_queue(history)
-            movie_slug = movie["slug"]
-            topic = movie.get("topic") or f"{movie['title']} ({movie['year']})"
+            entry = pick_topic_from_queue(history)
+            topic_slug = entry["slug"]
+            topic = entry.get("topic") or entry.get("title", topic_slug)
+            duration = int(entry.get("minutes", duration))
+            target_words = duration * wpm
 
-        print(f"[Movie] {topic} (slug={movie_slug})", flush=True)
-        srt_text = fetch_srt_text(movie_slug, pipeline)
-        blocks = parse_srt(srt_text)
-        if len(blocks) < 20:
-            sys.exit(f"SRT too short ({len(blocks)} lines) for {movie_slug}")
-
-        (out / "subtitles.srt").write_text(srt_text, encoding="utf-8")
+        print(f"[Topic] {topic} (slug={topic_slug})", flush=True)
 
         created = notebooklm_json_with_retry(
-            "create", f"{niche.get('name', 'Retro Movie Archive')} {run_id}", "--use"
+            "create", f"{niche.get('name', 'Simply Explained')} {run_id}", "--use"
         )
         notebook_id = extract_notebook_id(created)
-
-        srt_tmp = out / "_srt_upload.txt"
-        srt_tmp.write_text(srt_text, encoding="utf-8")
-        print("  Adding SRT as NotebookLM source...", flush=True)
-        added = notebooklm_source_add(
-            notebook_id,
-            str(srt_tmp.resolve()),
-            request_timeout=int(pipeline.get("source_request_timeout", 180)),
-            reconcile_timeout=float(pipeline.get("source_reconcile_timeout", 90)),
-        )
-        srt_tmp.unlink(missing_ok=True)
-        srt_source_id = extract_source_id(added)
-        wait_sources(notebook_id, [srt_source_id], timeout=int(pipeline.get("source_wait_timeout", 900)))
 
         style_notes = _ingest_style_sources(notebook_id, pipeline)
         (out / "style_notes.txt").write_text(style_notes, encoding="utf-8")
@@ -665,7 +768,7 @@ def main() -> None:
         style_for_prompt = notebooklm_style_brief(
             style_notes, playbook_in_notebook=bool(playbook_source_id)
         )
-        chat_source_ids = [srt_source_id]
+        chat_source_ids = []
         if playbook_source_id:
             chat_source_ids.append(playbook_source_id)
 
@@ -674,40 +777,44 @@ def main() -> None:
             print(f"  Waiting {pre_chat_delay:.0f}s before NotebookLM chat...", flush=True)
             time.sleep(pre_chat_delay)
 
-        movie_title = topic.split("—")[0].strip() if "—" in topic else topic
+        topic_title = topic.split("—")[0].strip() if "—" in topic else topic
+        hook_angle = entry.get("hook_angle", "")
 
         print("[Hook] Title + cold open + thumbnail package...", flush=True)
         hook_prompt = (
             load_prompt("story_hook_package.txt")
-            .replace("{movie_title}", movie_title)
+            .replace("{topic_title}", topic_title)
             .replace("{duration_minutes}", str(duration))
             .replace("{style_notes}", style_for_prompt)
         )
+        if hook_angle:
+            hook_prompt += f"\n\nSuggested hook angle: {hook_angle}"
         hook_raw = ask(
             notebook_id,
             hook_prompt,
             new=True,
             request_timeout=300,
-            source_ids=chat_source_ids,
+            source_ids=chat_source_ids or None,
         )
         (out / "hook_package_raw.txt").write_text(hook_raw, encoding="utf-8")
         try:
             hook_pkg = parse_hook_package_json(hook_raw)
         except ValueError:
             hook_pkg = {
-                "title": sanitize_seo_title(f"{movie_title} — Full Movie Recap"),
+                "title": sanitize_seo_title(topic),
                 "cold_open": "",
-                "thumbnail_text": movie_title.split("(")[0].strip()[:20].upper(),
-                "overlay_subtitle": "RECAP",
+                "thumbnail_text": topic_title.split("(")[0].strip()[:20].upper(),
+                "overlay_subtitle": "EXPLAINED",
+                "icon_emoji": "📚",
             }
         locked_title = sanitize_seo_title(str(hook_pkg.get("title", topic)))
         cold_open = clean_script_for_tts(str(hook_pkg.get("cold_open", "")))
         save_json(out / "hook_package.json", {**hook_pkg, "title": locked_title, "cold_open": cold_open})
         print(f"  -> locked title: {locked_title}", flush=True)
 
-        print("[Script] Multi-part recap (hook-first)...", flush=True)
+        print("[Script] Multi-part explainer (hook-first)...", flush=True)
         story_prompt = build_story_generation_prompt(
-            movie_title=movie_title,
+            topic_title=topic_title,
             duration=duration,
             continue_word=continue_word,
             target_words=target_words,
@@ -720,7 +827,7 @@ def main() -> None:
             story_prompt,
             continue_word,
             new=True,
-            source_ids=chat_source_ids,
+            source_ids=chat_source_ids or None,
         )
         script = clean_script_for_tts(script)
         word_count = len(script.split())
@@ -730,19 +837,18 @@ def main() -> None:
         segments = split_script_for_scenes(script, scene_count)
         print(f"  -> {scene_count} narration scenes", flush=True)
 
-        print("[Scene map] Subtitle line ranges...", flush=True)
-        mapping, map_raw = collect_scene_mapping(
+        print("[Visual map] Slide specs per scene...", flush=True)
+        mapping, map_raw = collect_visual_mapping(
             notebook_id,
             segments,
-            blocks,
             pipeline,
-            source_ids=chat_source_ids,
+            source_ids=chat_source_ids or None,
         )
         (out / "scene_mapping_raw.txt").write_text(map_raw, encoding="utf-8")
 
-        scene_clips = resolve_scene_clips(mapping, segments, blocks, pipeline)
-        validate_scene_clips(scene_clips)
-        print(f"  -> {len(scene_clips)} clips resolved from SRT", flush=True)
+        scene_clips = resolve_scene_visuals(mapping, segments, pipeline)
+        validate_scene_clips(scene_clips, render_mode=render_mode)
+        print(f"  -> {len(scene_clips)} slide scenes mapped", flush=True)
 
         past_topics = format_topic_history_for_prompt(history)
         print("[SEO] YouTube metadata (locked title)...", flush=True)
@@ -753,7 +859,7 @@ def main() -> None:
             .replace("{past_topics}", past_topics)
             .replace("{style_notes}", style_for_prompt)
         )
-        seo_raw = ask(notebook_id, seo_prompt, new=True, source_ids=chat_source_ids)
+        seo_raw = ask(notebook_id, seo_prompt, new=True, source_ids=chat_source_ids or None)
         try:
             seo = parse_seo_json(seo_raw)
         except ValueError:
@@ -769,30 +875,38 @@ def main() -> None:
                 .replace("{topic}", topic)
                 .replace("{title}", locked_title)
                 .replace("{thumbnail_text}", str(hook_pkg.get("thumbnail_text", "")))
+                .replace("{icon_emoji}", str(hook_pkg.get("icon_emoji", "📚")))
                 .replace("{style_notes}", style_for_prompt)
             )
-            thumb_raw = ask(notebook_id, thumb_prompt, new=True, source_ids=chat_source_ids)
+            thumb_raw = ask(notebook_id, thumb_prompt, new=True, source_ids=chat_source_ids or None)
             (out / "thumbnail_raw.txt").write_text(thumb_raw, encoding="utf-8")
             try:
                 thumb_spec = parse_thumbnail_json(thumb_raw)
             except ValueError:
                 thumb_spec = {
-                    "image_search_query": hook_pkg.get("image_search_query") or topic,
-                    "overlay_title": hook_pkg.get("thumbnail_text") or movie_title.split("(")[0].strip()[:20],
-                    "overlay_subtitle": hook_pkg.get("overlay_subtitle") or "RECAP",
+                    "overlay_title": hook_pkg.get("thumbnail_text") or topic_title.split("(")[0].strip()[:20],
+                    "overlay_subtitle": hook_pkg.get("overlay_subtitle") or "EXPLAINED",
+                    "time_badge": f"{duration} MIN",
+                    "icon_emoji": hook_pkg.get("icon_emoji", "📚"),
                 }
             thumbnail_meta = {
                 **thumb_spec,
                 "topic": topic,
                 "title": locked_title,
                 "thumbnail_text": hook_pkg.get("thumbnail_text"),
+                "bg_color": thumb_spec.get("bg_color", "#0f0f1a"),
+                "time_badge": thumb_spec.get("time_badge", f"{duration} MIN"),
+                "render_mode": render_mode,
             }
             print(f"  -> thumbnail spec: {thumbnail_meta.get('overlay_title')}", flush=True)
 
     scenes = clips_to_scenes(scene_clips)
     (out / "script.txt").write_text(script, encoding="utf-8")
     (out / "topics.txt").write_text(topic, encoding="utf-8")
-    save_json(out / "scene_clips.json", {"movie_slug": movie_slug, "scenes": scene_clips})
+    save_json(
+        out / "scene_clips.json",
+        {"topic_slug": topic_slug, "render_mode": render_mode, "scenes": scene_clips},
+    )
     save_json(out / "scenes.json", scenes)
     save_json(
         out / "script_segments.json",
@@ -814,7 +928,9 @@ def main() -> None:
         "run_id": run_id,
         "notebook_id": notebook_id,
         "niche": niche.get("name"),
-        "movie_slug": movie_slug,
+        "topic_slug": topic_slug,
+        "movie_slug": topic_slug,
+        "render_mode": render_mode,
         "topic": topic,
         "duration_minutes": duration,
         "word_count": len(script.split()),
@@ -828,8 +944,8 @@ def main() -> None:
     save_json(out / "metadata.json", meta)
 
     print(f"run_id={run_id}")
-    print(f"movie_slug={movie_slug}")
-    print(f"Done: script + {len(scene_clips)} scene clips + SEO -> {out}")
+    print(f"topic_slug={topic_slug}")
+    print(f"Done: script + {len(scene_clips)} slide scenes + SEO -> {out}")
 
 
 if __name__ == "__main__":

@@ -2,7 +2,7 @@
 # Prerequisite: notebooklm -p retro auth check --test must pass
 
 $ErrorActionPreference = "Stop"
-$Repo = if ($env:RETRO_GH_REPO) { $env:RETRO_GH_REPO } else { "Battatawada/movie" }
+$Repo = if ($env:RETRO_GH_REPO) { $env:RETRO_GH_REPO } else { "Battatawada/study" }
 $Profile = if ($env:NOTEBOOKLM_PROFILE) { $env:NOTEBOOKLM_PROFILE } else { "retro" }
 $storage = Join-Path $env:USERPROFILE ".notebooklm\profiles\$Profile\storage_state.json"
 

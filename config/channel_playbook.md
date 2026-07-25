@@ -1,142 +1,143 @@
-# Retro Movie Archive — Channel Playbook
+# Simply Explained — Channel Playbook
 
-> Feed this document to NotebookLM before Phase 1 runs (style sources + SRT).
+> Feed this document to NotebookLM before Phase 1 runs.
 > Reference channels: `config/seed_channels.json`
 
 ## Channel identity
 
 | Field | Value |
 |-------|--------|
-| Channel | Retro Movie Archive (`@retromoviearchive`) |
-| Host voice | Single male narrator — calm, confident, spoiler-forward |
-| Tone | Warm documentary recap — not horror-bait, not bro-YouTube |
-| Format | 12–15 min full recap, real muted film clips + original VO + subtle ambient bed |
-| Visual | Wikimedia still thumbnails + PIL text overlay (no AI scene images) |
+| Channel | Simply Explained (`@simplyexplainedyt`) |
+| Host voice | Single male narrator — fast, clear, teacher energy |
+| Tone | Dense encyclopedia explainer — not hype, not bro-YouTube |
+| Format | 12–22 min concept maps, slide visuals + AI VO + minimal lo-fi bed |
+| Visual | Dark slide cards (concept title + bullets) — no film clips, no AI scene images |
 
 ---
 
-## A. Title patterns (from Movie Recaps, Mystery Recapped, Haunting Tube)
+## A. Title patterns (from Codist, Just Explained, Infinite Codes)
 
-**What wins clicks in this niche (different from true-crime paradox titles):**
+**What wins clicks in this niche:**
 
-- **Movie name + year + format keyword** for search: `Fight Club (1999) | Movie Recap`
-- **Twist/ending hook** without lying: `The Ending of Shutter Island Finally Makes Sense`
-- **Stakes fragment** before title: `He Was Never Real | The Sixth Sense Recap`
-- **Time promise** for browse: `Inception Explained in 12 Minutes`
+- **"Every X Explained in Y Minutes"** — primary formula
+- **"All X Explained in Y Minutes"** — variant for glossaries
+- Time promise in title: 10–22 minutes based on topic breadth
+- Specific > vague: "Every HTTP Status Code" beats "Web Stuff Explained"
 
 **Clickable shapes:**
 
-- `[Stakes line] | [Film] Recap`
-- `[Film] ([Year]) | Ending Explained`
-- `[Film] — Every Twist & The Real Ending`
+- `Every [Topic] Explained in [N] Minutes`
+- `All [Topic] Terms Explained in [N] Minutes`
+- `Every Type of [X] Explained in [N] Minutes`
 
 **Avoid:**
 
-- ALL CAPS spam, emoji in title, `[4K]`, fake "LEAKED"
-- Generic-only titles with zero hook: `Movie Recap #47`
-- Duplicate film on channel page — **one film = one video, ever**
+- ALL CAPS spam, emoji in title, fake urgency
+- Vague titles: "Programming Explained" (too broad)
+- Duplicate topic on channel page — **one topic = one video, ever**
 
-**Note:** "Recap" and "Explained" are **required SEO anchors** in this niche — unlike crime channels, do not ban them.
+**Note:** "Explained" is a **required SEO anchor** — do not ban it.
 
 ---
 
 ## B. Thumbnail patterns
 
-- **One hero subject** — lead actor face or iconic still, 40%+ of frame
-- **Right-weighted subject**; darker/simpler **left 40%** for overlay text
-- **2–4 word overlay** (composited in post): `THE TWIST`, `ENDING EXPLAINED`, film shorthand
-- **Subtitle chip:** `RECAP` or `EXPLAINED` in gold/red accent
-- Film-grain, motivated light, high contrast — readable at phone size
-- **Never:** 6-panel collage, studio logos, rating badges, text baked into source image
+- **Dark navy background** (#0f0f1a) — matches slide aesthetic
+- **Bold white topic name** — 2–4 words (HTTP CODES, DATA STRUCTURES)
+- **Time badge** — "14 MIN" chip in accent color
+- **"EXPLAINED" subtitle chip** — blue/green accent
+- **Optional emoji** — one relevant icon (🌐 🔐 💾)
+- **Never:** actor faces, film stills, 6-panel collage, red arrows
 
 ---
 
-## C. Hook / retention (first 30–60 seconds)
+## C. Hook / retention (first 30–45 seconds)
 
-Reference channels often **name the film early** (search intent) but **open mid-scene**, not with channel intro.
+Reference channels open with **one concrete example**, not channel intro.
 
-**Retro Movie Archive cold-open formula:**
+**Simply Explained cold-open formula:**
 
-1. **0–5 sec:** Pattern interrupt — mid-crisis line from the film's story (in medias res)
-2. **5–15 sec:** Specific proof — date, object, character name, or quote fragment
-3. **15–35 sec:** Film + year named once; BUT/THEREFORE open loop on the central mystery
-4. **35–60 sec:** Second loop — deeper wrong turn; promise the ending will land
+1. **0–5 sec:** Concrete noun — specific object, command, or fact
+2. **5–15 sec:** Why it's surprising or important
+3. **15–30 sec:** Promise — "let me explain every X" or "here's how it all connects"
+4. **30–45 sec:** First concept label — "Arrays." or "HTTP 404." then definition
 
-**New channel rule:** Hook must work in **first 30 seconds** without subscriber trust.
-
-**Do NOT open with:** "Today we explore…", birth-date biography, 60-second plot summary before tension.
+**Do NOT open with:** "Welcome back", "In this video", "Today we'll learn"
 
 **Retention cadence (full video):**
 
-- Micro-curiosity every 10–15 sec (faster than long-form crime)
-- Pattern interrupt every 2–3 min (new location, reveal, time jump)
-- Act break ~7 min: one-sentence stakes reset, no recap dump
-- Ending explained clearly in final 20%
+- New concept every 45–90 seconds
+- Spoken section labels: "Next up: Binary Trees."
+- Definition → example → connect to next concept
+- Recap in final 60 seconds (3–5 key takeaways)
 
 ---
 
 ## D. What NOT to copy
 
-- Horror channels' jump-scare editing when covering non-horror films
-- 40–60 min "everything explained" marathons (our slot is 12–15 min)
-- Profanity-bait or gore-bait thumbnails
-- Dual-narrator voice switching (Mind In Minutes pattern — wrong brand for recap)
-- Robotic monotone TTS with no prosody variation
+- Movie recap dramatic hooks ("the ending will shock you")
+- 40–60 min marathons (our slot is 12–22 min)
+- Sponsor reads longer than 8 seconds (add only after 10K subs)
+- Dual-narrator voice switching
+- Slow 145 WPM documentary pacing — we're faster (170–185 WPM)
 
 ---
 
-## E. Audio stack (research-backed — human-first)
+## E. Audio stack
 
 | Layer | Choice | Why |
 |-------|--------|-----|
-| **Primary TTS** | Azure `en-US-ChristopherNeural` | Matches top recap channels: male, mid-deep, authoritative, conversational |
-| **Azure style** | `newscast-casual` @ **0.92** style degree | Sounds like a person explaining a film — not robotic documentary |
-| **Humanize** | Variable pauses (200–520ms), pitch micro-drift, contraction-friendly scripts | Avoids "same cadence every sentence" AI tell |
-| **Rate** | `-4%` | Slightly slower = clearer + more natural at 145 wpm |
-| **Quote VO** | `en-US-GuyNeural` (male), `en-US-AriaNeural` (female) | Brief dialogue in double quotes only |
-| **Fallback** | Edge TTS (same Christopher/Guy/Aria voices) | When Azure fails or quota exhausted |
-| **Bg music** | `ambient_cinematic.mp3` — **per-scene volume** + 0.5s crossfades | Rises on tense/action/reveal beats, dips on hook + calm exposition |
-| **Ducking** | `duck_under_voice: true` @ 65% bed level | Voice always wins — music supports, never masks |
-| **End card** | Same Christopher voice, friendly outro style | 5–8 sec subscribe CTA |
+| **Primary TTS** | Azure `en-US-GuyNeural` | Brighter, faster — matches Codist/Just Explained pace |
+| **Azure style** | `narration-professional` @ **0.88** style degree | Teacher clarity without robotic documentary tone |
+| **Rate** | `+2%` | ~175 WPM — faster than recap channels |
+| **Pauses** | 80–200ms between concepts | Minimal dead air — encyclopedia flow |
+| **Fallback** | Edge TTS (same Guy voice) | When Azure fails |
+| **Bg music** | `ambient_cinematic.mp3` @ **8%** volume | Barely audible bed — voice always wins |
+| **Ducking** | `duck_under_voice: true` @ 55% | Music never competes with definitions |
+| **End card** | Same Guy voice, brief subscribe CTA | 5–8 sec |
 
 **Quota math (shared Azure account, 500k chars/month):**
 
-- ~9,500–11,000 chars per 12–15 min recap (script + end card)
-- **~45–52 recaps/month** total across all channels if equal split
-- Retro videos are **shorter than 25-min crime docs** → favorable quota vs sibling channels
-- Save quota: `tts_merge_chunks: true`, don't re-run Phase 2, tight scripts (no fluff)
-
-**What we deliberately exclude:**
-
-- Emily/Andrew scene alternation (crime/psychology channel pattern)
-- Irish `en-IE-EmilyNeural` as primary (wrong gender/brand for this channel)
-- Karaoke burned-in captions (YouTube `.srt` upload only)
-- Voice cloning or celebrity mimicry
+- ~8,000–12,000 chars per 14–20 min explainer
+- **~40–60 explainers/month** if equal split across channels
 
 ---
 
-## F. Metrics targets (honest — exclude owner self-watches)
+## F. Visual stack (slide mode)
 
-| Signal | Healthy (new recap channel) | Fix if bad |
-|--------|----------------------------|------------|
-| CTR | 4–7%+ movie recap niche | Title + thumbnail alignment |
-| Retention @ 30 sec | 35%+ | Cold open / hook package |
-| Retention @ 3 min | 20%+ | First-act pacing, name characters fast |
-| Avg view duration | 6–9 min on 12 min video | Micro-curiosity every 10–15 sec |
+| Element | Spec |
+|---------|------|
+| Background | `#0f0f1a` dark navy |
+| Title font | Bold white, 72px, top-left |
+| Bullets | Gray `#A0A0B0`, 36px, max 3 per slide |
+| Accent bar | Left edge, concept color (blue/green/amber/purple) |
+| Scene duration | Matches narration beat (from TTS) |
+| Transitions | Hard cut between slides (competitor style) |
 
 ---
 
-## G. Pipeline order (hook-first)
+## G. Metrics targets
 
-1. Topic pick (movie queue + `topic_history.json` dedup)
-2. SRT ingest + style brief (seed channels)
+| Signal | Healthy (new explainer channel) | Fix if bad |
+|--------|--------------------------------|------------|
+| CTR | 5–8%+ tech explainer niche | Title + thumbnail alignment |
+| Retention @ 30 sec | 40%+ | Cold open / hook package |
+| Retention @ 3 min | 25%+ | Concept pacing, section labels |
+| Avg view duration | 8–12 min on 16 min video | New concept every 45–90 sec |
+
+---
+
+## H. Pipeline order
+
+1. Topic pick (`topic_queue.json` + `topic_history.json` dedup)
+2. Style brief (seed channels / playbook)
 3. **Hook package** → locked title, cold open, thumbnail text
-4. Full script (cold open verbatim, then continue)
-5. Scene mapping → SRT timestamps
+4. Full script (cold open verbatim, then concept sections)
+5. Visual mapping → slide specs per scene
 6. SEO (title **locked** from hook)
-7. Thumbnail spec (Wikimedia query + overlay from hook)
-8. Phase 2: Azure TTS → Phase 3: VPS clip render → compose thumbnail → upload
+7. Thumbnail spec (dark bg + text overlay)
+8. Phase 2: Azure TTS → Phase 3: VPS slide render → upload
 
 ---
 
-*Last updated: 2026-07-22 — derived from seed_channels.json references + movie-recap niche norms.*
+*Last updated: 2026-07-25 — pivot from Retro Movie Archive to teaching explainer format.*
