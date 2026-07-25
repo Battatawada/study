@@ -324,15 +324,14 @@ def _build_scene_dynamic_bg(
 
 
 def _slide_to_video(slide: Path, duration: float, dest: Path, *, fps: int = FPS) -> None:
-    """Convert a slide PNG to a video segment matching narration duration."""
+    """Convert a slide PNG to a silent video segment matching narration duration."""
     _run([
         "ffmpeg", "-y",
         "-loop", "1", "-i", str(slide),
-        "-f", "lavfi", "-i", f"anullsrc=r=44100:cl=2",
         "-t", str(duration),
         "-vf", f"scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2:color={BG_COLOR},fps={fps}",
+        "-an",
         "-c:v", "libx264", "-preset", X264_PRESET, "-pix_fmt", "yuv420p",
-        "-c:a", "aac", "-shortest",
         str(dest),
     ])
 
