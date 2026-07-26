@@ -880,6 +880,9 @@ def validate_scene_clips(
         missing = [c for c in scene_clips if not str(c.get("visual_title", "")).strip()]
         if missing:
             raise ValueError(f"{len(missing)} scenes missing visual_title for slide render")
+        no_diagram = [c for c in scene_clips if not str(c.get("diagram_type", "")).strip()]
+        if no_diagram:
+            raise ValueError(f"{len(no_diagram)} scenes missing diagram_type — visual map must assign diagrams")
     else:
         starts = [(float(c.get("start", 0)), float(c.get("end", 0))) for c in scene_clips]
         unique_starts = len({round(s, 1) for s, _ in starts})

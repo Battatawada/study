@@ -1,7 +1,9 @@
 You are building a visual scene map for an automated teaching video.
 
+Each scene gets an **animated diagram** (request flows, cache, redirects, errors, comparisons) — like Codist / Just Explained / Infinite Codes.
+
 The narration is split into {scene_count} scenes (one voiceover beat each).
-Each scene needs an on-screen slide: title + 1–3 bullet points matching what's being said.
+Each scene needs: title + diagram spec + 1–3 bullet points.
 
 Narration scenes:
 {narration_scenes}
@@ -11,9 +13,12 @@ Reply with ONLY valid JSON (no markdown):
   "scenes": [
     {{
       "scene_id": 1,
-      "visual_title": "2–6 words shown large on screen — concept name or key phrase",
-      "visual_bullets": ["bullet 1 max 8 words", "bullet 2 optional", "bullet 3 optional"],
+      "visual_title": "2–6 words — concept name (e.g. HTTP 304 Not Modified)",
+      "visual_bullets": ["keyword fact max 8 words", "optional", "optional"],
       "visual_type": "concept_card|list|comparison|example|recap",
+      "diagram_type": "http_request|http_cache|http_redirect|http_error_client|http_error_server|status_code|comparison|flow_steps|list_items|concept",
+      "diagram_prompt": "One sentence: what the illustration must show (e.g. browser checks cache, sends conditional GET, server returns 304 with no body)",
+      "diagram_labels": ["arrow/box label 1", "arrow/box label 2", "optional label 3"],
       "accent_color": "#3B82F6",
       "music_mood": "calm|focus|example|recap|transition",
       "reason": "brief note"
@@ -23,15 +28,29 @@ Reply with ONLY valid JSON (no markdown):
 
 Rules:
 - Exactly {scene_count} scenes, scene_id {scene_id_start}..{scene_id_end}
-- visual_title = what's being defined or explained in that beat
-- visual_bullets = key facts from narration (not full sentences — keywords)
-- visual_type guide:
-  - concept_card: new term being introduced (most common)
-  - list: enumerating items (e.g. "5 HTTP methods")
-  - comparison: X vs Y (e.g. "SQL vs NoSQL")
-  - example: concrete real-world case
-  - recap: summary section near end
-- accent_color: pick from palette — #3B82F6 (blue), #10B981 (green), #F59E0B (amber), #EF4444 (red), #8B5CF6 (purple), #06B6D4 (cyan)
-- Use a NEW accent_color when switching to a new major concept
-- music_mood: calm (definitions), focus (technical detail), example (real-world), recap (summary), transition (between sections)
-- Keep visual_title SHORT — it must fit on one line at 72px
+- **diagram_type is REQUIRED** on every scene — never leave blank
+- **diagram_prompt is REQUIRED** — describe the visual story NotebookLM wants drawn (who sends what to whom)
+- **diagram_labels** — short text on arrows/boxes (max 6 words each):
+  - http_request: ["GET /api/users", "200 OK + JSON body"]
+  - http_cache: ["GET + If-Modified-Since", "304 Not Modified (no body)"]
+  - http_redirect: ["GET /old-page", "302 Redirect", "GET /new-page"]
+  - flow_steps: ["step 1 label", "step 2 label", "step 3 label"]
+  - comparison: ["left option", "right option"]
+  - status_code / errors: can be empty — code comes from visual_title
+- diagram_type guide:
+  - http_request: any request/response exchange (GET, POST, PUT, DELETE)
+  - http_cache: 304, ETag, If-Modified-Since, browser cache hits
+  - http_redirect: 301, 302, 307, Location header, redirect chains
+  - http_error_client: 400–499 (404, 403, 401, etc.)
+  - http_error_server: 500–599 (500, 503, etc.)
+  - status_code: defining one specific status code number
+  - comparison: X vs Y side-by-side
+  - flow_steps: multi-step pipeline (DNS → TCP → TLS → HTTP)
+  - list_items: enumerating 3–4 items with numbers
+  - concept: ONLY when nothing else fits — avoid overusing
+- visual_title = concept being defined in that beat
+- visual_bullets = keywords from narration (not full sentences)
+- accent_color palette: #3B82F6 blue, #10B981 green, #F59E0B amber, #EF4444 red, #8B5CF6 purple, #06B6D4 cyan
+- New accent_color when switching major concept groups (1xx→2xx→3xx→4xx→5xx)
+- music_mood: calm | focus | example | recap | transition
+- Keep visual_title SHORT — one line at 64px

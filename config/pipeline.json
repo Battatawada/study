@@ -24,6 +24,8 @@
   "slide_height": 1080,
   "slide_bg_color": "#0f0f1a",
   "slide_accent_default": "#3B82F6",
+  "slide_animation": true,
+  "slide_animation_min_frames": 24,
   "tts_provider": "azure",
   "tts_require_azure": true,
   "tts_modulation": true,

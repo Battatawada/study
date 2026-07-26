@@ -11,7 +11,7 @@
 | Host voice | Single male narrator — fast, clear, teacher energy |
 | Tone | Dense encyclopedia explainer — not hype, not bro-YouTube |
 | Format | 12–22 min concept maps, slide visuals + AI VO + minimal lo-fi bed |
-| Visual | Dark slide cards (concept title + bullets) — no film clips, no AI scene images |
+| **Visual** | Dark slide cards with **animated diagrams** (request/response, cache, errors) + bullets |
 
 ---
 
@@ -108,11 +108,13 @@ Reference channels open with **one concrete example**, not channel intro.
 | Element | Spec |
 |---------|------|
 | Background | `#0f0f1a` dark navy |
-| Title font | Bold white, 72px, top-left |
-| Bullets | Gray `#A0A0B0`, 36px, max 3 per slide |
+| Title font | Bold white, 64px, top-left |
+| Diagram panel | Animated illustration per scene (request flows, cache, redirects, errors) |
+| Bullets | Gray `#A0A0B0`, 32px, max 3 — fade in after diagram animates |
 | Accent bar | Left edge, concept color (blue/green/amber/purple) |
 | Scene duration | Matches narration beat (from TTS) |
-| Transitions | Hard cut between slides (competitor style) |
+| Animation | Progressive diagram reveal (arrows draw, labels appear) — Codist-style teaching |
+| Transitions | Hard cut between scenes |
 
 ---
 

@@ -16,18 +16,20 @@ if (-not (Test-Path $KeyPath)) {
 }
 
 Write-Host "==> Sync to VPS /tmp/retro-deploy/"
-ssh -i $KeyPath $SshHost "rm -rf /tmp/retro-deploy && mkdir -p /tmp/retro-deploy"
+ssh -i $KeyPath $SshHost "rm -rf /tmp/retro-deploy && mkdir -p /tmp/retro-deploy/prompts"
 scp -i $KeyPath -r vps deploy scripts config/pipeline.json "${SshHost}:/tmp/retro-deploy/"
+scp -i $KeyPath config/prompts/visual_mapping.txt "${SshHost}:/tmp/retro-deploy/prompts/"
 if (Test-Path "config/bg_music") {
     scp -i $KeyPath -r config/bg_music "${SshHost}:/tmp/retro-deploy/"
 }
 
 $installCmd = @(
-    "sudo mkdir -p $RemoteRoot/vps $RemoteRoot/deploy $RemoteRoot/scripts $RemoteRoot/config/bg_music $RemoteRoot/runs /opt/movies",
+    "sudo mkdir -p $RemoteRoot/vps $RemoteRoot/deploy $RemoteRoot/scripts $RemoteRoot/config/bg_music $RemoteRoot/config/prompts $RemoteRoot/runs /opt/movies",
     "sudo cp -r /tmp/retro-deploy/vps/* $RemoteRoot/vps/",
     "sudo cp -r /tmp/retro-deploy/deploy/* $RemoteRoot/deploy/",
     "sudo cp -r /tmp/retro-deploy/scripts/* $RemoteRoot/scripts/",
     "sudo cp /tmp/retro-deploy/pipeline.json $RemoteRoot/config/",
+    "sudo cp /tmp/retro-deploy/prompts/visual_mapping.txt $RemoteRoot/config/prompts/ 2>/dev/null || true",
     "sudo cp -r /tmp/retro-deploy/bg_music/* $RemoteRoot/config/bg_music/ 2>/dev/null || true",
     "sudo chown -R niche:niche $RemoteRoot /opt/movies",
     "test -d $RemoteRoot/.venv || sudo -u niche python3 -m venv $RemoteRoot/.venv",

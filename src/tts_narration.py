@@ -62,6 +62,15 @@ def _quote_gender_hint(sentence: str) -> str:
     return "quote_male"
 
 
+def _is_concept_label(sentence: str) -> bool:
+    """Short section labels like 'HTTP 404.' or 'Binary Trees.' — punchy Codist-style beats."""
+    s = sentence.strip()
+    words = s.split()
+    if len(words) > 5 or s.endswith("?"):
+        return False
+    return bool(re.search(r"[A-Z0-9]", s)) and len(words) <= 4
+
+
 def _pause_after_sentence(sentence: str, *, humanize: bool) -> int:
     if not humanize:
         return 120
@@ -99,6 +108,12 @@ def _prosody_for_sentence(
         pitch = "+1%"
     elif humanize and sent_index % 3 == 2:
         pitch = "-1%"
+
+    if _is_concept_label(sentence) and humanize:
+        rate = _adjust_rate(rate, 4)
+        pitch = "+2%"
+        volume = "+4%"
+        return {"rate": rate, "pitch": pitch, "volume": volume}
 
     if is_hook_scene:
         rate = _adjust_rate(base_rate, -3)

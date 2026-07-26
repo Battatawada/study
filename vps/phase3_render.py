@@ -12,7 +12,8 @@ from typing import Any
 
 # Allow importing slide_builder from same package
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from slide_builder import render_slide  # noqa: E402
+from slide_builder import render_slide, render_slide_frames  # noqa: E402
+from diagram_renderer import infer_diagram_type  # noqa: E402
 
 
 FPS = 30
@@ -189,10 +190,14 @@ def _resolve_bg_track(cfg: dict[str, Any], inputs: Path) -> Path | None:
     app_root = Path(os.environ.get("APP_ROOT", "/opt/retro-movies"))
     if track:
         candidates.append(app_root / track)
-        candidates.append(Path(track))
+        if not track.startswith("/"):
+            candidates.append(app_root / "config" / Path(track).name)
     for c in candidates:
-        if c.exists() and c.stat().st_size > 1000:
-            return c
+        try:
+            if c.exists() and c.stat().st_size > 1000:
+                return c
+        except OSError:
+            continue
     return None
 
 
@@ -324,10 +329,44 @@ def _build_scene_dynamic_bg(
 
 
 def _slide_to_video(slide: Path, duration: float, dest: Path, *, fps: int = FPS) -> None:
-    """Convert a slide PNG to a silent video segment matching narration duration."""
+    """Convert a static slide PNG to a silent video segment matching narration duration."""
     _run([
         "ffmpeg", "-y",
         "-loop", "1", "-i", str(slide),
+        "-t", str(duration),
+        "-vf", f"scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2:color={BG_COLOR},fps={fps}",
+        "-an",
+        "-c:v", "libx264", "-preset", X264_PRESET, "-pix_fmt", "yuv420p",
+        str(dest),
+    ])
+
+
+def _animated_slide_to_video(
+    scene: dict[str, Any],
+    duration: float,
+    dest: Path,
+    work: Path,
+    *,
+    fps: int = FPS,
+    bg_color: str = "#0f0f1a",
+    channel_name: str = "Byte Glossary",
+    min_frames: int = 24,
+) -> None:
+    """Render progressive diagram reveal frames, then encode to video."""
+    sid = int(scene.get("scene_id", 0))
+    frames_dir = work / f"frames_{sid:02d}"
+    n_frames = max(min_frames, int(duration * fps))
+    render_slide_frames(
+        scene,
+        frames_dir,
+        n_frames=n_frames,
+        bg_color=bg_color,
+        channel_name=channel_name,
+    )
+    _run([
+        "ffmpeg", "-y",
+        "-framerate", str(fps),
+        "-i", str(frames_dir / "frame_%04d.png"),
         "-t", str(duration),
         "-vf", f"scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2:color={BG_COLOR},fps={fps}",
         "-an",
@@ -368,6 +407,8 @@ def _run_slide_render_sync(
 
     bg_color = pipeline.get("slide_bg_color", "#0f0f1a")
     channel_name = meta.get("niche", "Simply Explained")
+    slide_animation = bool(pipeline.get("slide_animation", True))
+    animation_min_frames = int(pipeline.get("slide_animation_min_frames", 24))
 
     clip_paths: list[Path] = []
     total = len(scenes)
@@ -392,9 +433,21 @@ def _run_slide_render_sync(
 
         state["current_scene"] = sid
         state["clips_ready"] = len(clip_paths)
+        state["current_diagram"] = scene.get("diagram_type") or infer_diagram_type(scene)
         _write_state(state_path, state)
 
-        _slide_to_video(slide_path, narr_dur, clip_path)
+        if slide_animation:
+            _animated_slide_to_video(
+                scene,
+                narr_dur,
+                clip_path,
+                work,
+                bg_color=bg_color,
+                channel_name=channel_name,
+                min_frames=animation_min_frames,
+            )
+        else:
+            _slide_to_video(slide_path, narr_dur, clip_path)
         _assert_duration(clip_path, narr_dur, f"slide clip {sid}")
         clip_paths.append(clip_path)
         state["clips_ready"] = len(clip_paths)

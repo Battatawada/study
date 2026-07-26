@@ -10,7 +10,7 @@ from typing import Any
 
 # Microsoft-documented express-as styles only.
 _ROLE_STYLES: dict[str, str] = {
-    "narration": "documentary-narration",
+    "narration": "narration-professional",
     "twist": "newscast-formal",
     "quote": "serious",
     "quote_male": "serious",
@@ -56,7 +56,7 @@ def _voice_supports_express_as(voice: str) -> bool:
 def _role_style(voice: str, role: str) -> str | None:
     if not _voice_supports_express_as(voice):
         return None
-    return _ROLE_STYLES.get(role, "documentary-narration")
+    return _ROLE_STYLES.get(role, "narration-professional")
 
 
 def _escape_ssml(text: str) -> str:

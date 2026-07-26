@@ -310,6 +310,58 @@ def collect_visual_mapping(
     return all_mapping, "\n\n---\n\n".join(raw_parts)
 
 
+VALID_DIAGRAM_TYPES = frozenset({
+    "http_request",
+    "http_cache",
+    "http_redirect",
+    "http_error_client",
+    "http_error_server",
+    "status_code",
+    "comparison",
+    "flow_steps",
+    "list_items",
+    "concept",
+})
+
+
+def _infer_diagram_type(scene: dict[str, Any]) -> str:
+    """Fallback when NotebookLM omits diagram_type — uses vps diagram_renderer."""
+    vps_dir = Path(__file__).resolve().parents[1] / "vps"
+    if str(vps_dir) not in sys.path:
+        sys.path.insert(0, str(vps_dir))
+    from diagram_renderer import infer_diagram_type  # noqa: WPS433
+
+    return infer_diagram_type(scene)
+
+
+def _normalize_diagram_labels(raw: Any) -> list[str]:
+    if raw is None:
+        return []
+    if isinstance(raw, str):
+        raw = [raw]
+    if not isinstance(raw, list):
+        return []
+    return [str(item).strip() for item in raw if str(item).strip()][:4]
+
+
+def enrich_diagram_spec(row: dict[str, Any], narration: str) -> tuple[str, str, list[str]]:
+    """Resolve diagram_type, diagram_prompt, diagram_labels for one scene."""
+    probe = {
+        **row,
+        "narration": narration,
+        "visual_title": row.get("visual_title", ""),
+        "visual_bullets": row.get("visual_bullets", []),
+    }
+    diagram_type = str(row.get("diagram_type", "")).strip().lower()
+    if diagram_type not in VALID_DIAGRAM_TYPES:
+        diagram_type = _infer_diagram_type(probe)
+
+    diagram_prompt = str(row.get("diagram_prompt", "")).strip()
+    diagram_labels = _normalize_diagram_labels(row.get("diagram_labels"))
+
+    return diagram_type, diagram_prompt, diagram_labels
+
+
 def resolve_scene_visuals(
     mapping: list[dict[str, Any]],
     segments: list[str],
@@ -324,12 +376,16 @@ def resolve_scene_visuals(
         bullets = row.get("visual_bullets", [])
         if isinstance(bullets, str):
             bullets = [bullets]
+        diagram_type, diagram_prompt, diagram_labels = enrich_diagram_spec(row, text)
         out.append({
             "scene_id": sid,
             "narration": text,
             "visual_title": str(row.get("visual_title", f"Concept {sid}")).strip(),
             "visual_bullets": [str(b).strip() for b in bullets if str(b).strip()][:3],
             "visual_type": row.get("visual_type", "concept_card"),
+            "diagram_type": diagram_type,
+            "diagram_prompt": diagram_prompt,
+            "diagram_labels": diagram_labels,
             "accent_color": row.get("accent_color", default_accent),
             "music_mood": row.get("music_mood", "calm"),
         })
@@ -713,6 +769,9 @@ def main() -> None:
                 "visual_title": "HTTP 404",
                 "visual_bullets": ["Page not found", "Client error"],
                 "visual_type": "concept_card",
+                "diagram_type": "http_error_client",
+                "diagram_prompt": "Client requests a missing page; server returns 404",
+                "diagram_labels": ["GET /missing-page", "404 Not Found"],
                 "accent_color": "#EF4444",
                 "music_mood": "calm",
             },
@@ -721,6 +780,9 @@ def main() -> None:
                 "visual_title": "Status Codes",
                 "visual_bullets": ["Server response", "3-digit number"],
                 "visual_type": "concept_card",
+                "diagram_type": "http_request",
+                "diagram_prompt": "Browser sends HTTP request; server responds with status code",
+                "diagram_labels": ["HTTP Request", "Status Code Response"],
                 "accent_color": "#3B82F6",
                 "music_mood": "focus",
             },
@@ -848,7 +910,8 @@ def main() -> None:
 
         scene_clips = resolve_scene_visuals(mapping, segments, pipeline)
         validate_scene_clips(scene_clips, render_mode=render_mode)
-        print(f"  -> {len(scene_clips)} slide scenes mapped", flush=True)
+        diagram_types = [c.get("diagram_type", "?") for c in scene_clips[:5]]
+        print(f"  -> {len(scene_clips)} slide scenes mapped (diagrams: {diagram_types}...)", flush=True)
 
         past_topics = format_topic_history_for_prompt(history)
         print("[SEO] YouTube metadata (locked title)...", flush=True)
