@@ -38,6 +38,11 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--input", type=Path, default=Path("output"))
     parser.add_argument("--run-id", default=None)
+    parser.add_argument(
+        "--no-wipe",
+        action="store_true",
+        help="Keep existing VPS run dir (resume partial render)",
+    )
     args = parser.parse_args()
 
     base = os.environ.get("VPS_URL", "").rstrip("/")
@@ -83,10 +88,11 @@ def main() -> None:
     validate_scene_clips(scene_clips, scene_durations, render_mode=render_mode)
 
     with httpx.Client(timeout=300.0) as client:
-        # Wipe any stale run dir so /generate cannot return already_complete from a bad prior render.
-        wipe = client.delete(f"{base}/runs/{run_id}", headers=headers)
-        if wipe.status_code not in (200, 404):
-            sys.exit(f"Failed to reset VPS run {run_id}: {wipe.status_code} {wipe.text}")
+        if not args.no_wipe:
+            # Wipe any stale run dir so /generate cannot return already_complete from a bad prior render.
+            wipe = client.delete(f"{base}/runs/{run_id}", headers=headers)
+            if wipe.status_code not in (200, 404):
+                sys.exit(f"Failed to reset VPS run {run_id}: {wipe.status_code} {wipe.text}")
 
         resp = client.post(
             f"{base}/runs/{run_id}/inputs",

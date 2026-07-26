@@ -20,7 +20,7 @@ on:
 jobs:
   re-render:
     runs-on: ubuntu-latest
-    timeout-minutes: 180
+    timeout-minutes: 360
     steps:
       - uses: actions/checkout@v4
 
@@ -63,15 +63,58 @@ jobs:
           print(f"movie on VPS: {slug}")
           PY
 
-      - name: Trigger VPS clip render
+      - name: Resolve VPS run_id
+        id: meta
         run: |
           RUN_ID=$(python -c "import json; print(json.load(open('output/metadata.json'))['run_id'])")
           echo "run_id=$RUN_ID" >> "$GITHUB_OUTPUT"
-          python src/trigger_vps.py --input output --run-id "$RUN_ID"
-        id: meta
+
+      - name: Check VPS render status
+        id: vps_check
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          import sys
+
+          import httpx
+
+          run_id = json.load(open("output/metadata.json"))["run_id"]
+          base = os.environ["VPS_URL"].rstrip("/")
+          headers = {"Authorization": f"Bearer {os.environ['VPS_SECRET']}"}
+          try:
+              r = httpx.get(f"{base}/runs/{run_id}/status", headers=headers, timeout=60.0)
+              if r.status_code == 404:
+                  status = "missing"
+              else:
+                  r.raise_for_status()
+                  status = r.json().get("status", "missing")
+          except Exception as exc:
+              print(f"VPS status check failed: {exc}", flush=True)
+              status = "missing"
+
+          print(f"vps_status={status}", flush=True)
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as out:
+              out.write(f"vps_status={status}\n")
+          PY
+
+      - name: Trigger VPS clip render
+        if: ${{ steps.vps_check.outputs.vps_status != 'complete' }}
+        run: |
+          ARGS=(--input output --run-id "${{ steps.meta.outputs.run_id }}")
+          VPS_STATUS="${{ steps.vps_check.outputs.vps_status }}"
+          if [ "$VPS_STATUS" = "running" ] || [ "$VPS_STATUS" = "failed" ]; then
+            ARGS+=(--no-wipe)
+          fi
+          python src/trigger_vps.py "${ARGS[@]}"
 
       - name: Poll VPS until render complete
+        if: ${{ steps.vps_check.outputs.vps_status != 'complete' }}
         run: python src/poll_vps.py --run-id "${{ steps.meta.outputs.run_id }}" --timeout 10800
+
+      - name: Skip poll (VPS render already complete)
+        if: ${{ steps.vps_check.outputs.vps_status == 'complete' }}
+        run: echo "VPS render already complete for ${{ steps.meta.outputs.run_id }}"
 
       - name: Download final video from VPS
         run: python src/download_vps_output.py --run-id "${{ steps.meta.outputs.run_id }}" --output output
