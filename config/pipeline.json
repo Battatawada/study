@@ -17,7 +17,7 @@
   "source_wait_timeout": 900,
   "source_add_delay_sec": 5,
   "pre_chat_delay_sec": 15,
-  "scene_map_segment_chars": 80,
+  "scene_map_segment_chars": 75,
   "scene_map_batch_size": 12,
   "render_mode": "slides",
   "slide_width": 1920,

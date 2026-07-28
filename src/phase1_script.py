@@ -243,17 +243,30 @@ def build_visual_mapping_prompt(
 ) -> str:
     seg_chars = int(pipeline.get("scene_map_segment_chars", 80))
     scene_id_end = scene_id_start + len(segments) - 1
-    scene_lines = "\n".join(
-        f"Scene {scene_id_start + i}: {seg[:seg_chars]}{'...' if len(seg) > seg_chars else ''}"
-        for i, seg in enumerate(segments)
-    )
-    return (
-        load_prompt("visual_mapping.txt")
-        .replace("{scene_count}", str(len(segments)))
-        .replace("{scene_id_start}", str(scene_id_start))
-        .replace("{scene_id_end}", str(scene_id_end))
-        .replace("{narration_scenes}", scene_lines)
-    )
+
+    def _render(seg_len: int) -> str:
+        scene_lines = "\n".join(
+            f"Scene {scene_id_start + i}: {seg[:seg_len]}{'...' if len(seg) > seg_len else ''}"
+            for i, seg in enumerate(segments)
+        )
+        return (
+            load_prompt("visual_mapping.txt")
+            .replace("{scene_count}", str(len(segments)))
+            .replace("{scene_id_start}", str(scene_id_start))
+            .replace("{scene_id_end}", str(scene_id_end))
+            .replace("{narration_scenes}", scene_lines)
+        )
+
+    from common import MAX_NOTEBOOKLM_ASK_CHARS
+
+    # Leave margin for retry suffixes (e.g. "Reply with ONLY raw JSON...")
+    max_prompt = MAX_NOTEBOOKLM_ASK_CHARS - 64
+
+    prompt = _render(seg_chars)
+    while len(prompt) > max_prompt and seg_chars > 20:
+        seg_chars -= 10
+        prompt = _render(seg_chars)
+    return prompt
 
 
 def collect_visual_mapping(
