@@ -1,15 +1,6 @@
 {
   "topics": [
     {
-      "slug": "http-status-codes",
-      "title": "Every HTTP Status Code",
-      "minutes": 14,
-      "enabled": true,
-      "topic": "Every HTTP Status Code Explained in 14 Minutes",
-      "category": "web",
-      "hook_angle": "Open on 418 I'm a Teapot — the joke status code that became real"
-    },
-    {
       "slug": "data-structures",
       "title": "Every Data Structure",
       "minutes": 22,
@@ -17,6 +8,15 @@
       "topic": "Every Data Structure Simply Explained in 22 Minutes",
       "category": "cs",
       "hook_angle": "Open on arrays — the one structure every program secretly depends on"
+    },
+    {
+      "slug": "http-status-codes",
+      "title": "Every HTTP Status Code",
+      "minutes": 14,
+      "enabled": true,
+      "topic": "Every HTTP Status Code Explained in 14 Minutes",
+      "category": "web",
+      "hook_angle": "Open on 418 I'm a Teapot — the joke status code that became real"
     },
     {
       "slug": "linux-commands",
