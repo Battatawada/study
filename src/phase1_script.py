@@ -274,38 +274,57 @@ def _match_queue_slug(topic: str, movies: list[dict[str, Any]]) -> str | None:
     return None
 
 
+def pack_scene_batches(
+    segments: list[str],
+    *,
+    max_prompt_chars: int,
+    build_prompt,
+    retry_suffix_chars: int = 64,
+) -> list[tuple[int, list[str]]]:
+    """Pack complete scene texts into batches that fit under the NotebookLM prompt budget."""
+    budget = max_prompt_chars - retry_suffix_chars
+    batches: list[tuple[int, list[str]]] = []
+    index = 0
+    scene_id_start = 1
+
+    while index < len(segments):
+        batch: list[str] = []
+        while index + len(batch) < len(segments):
+            candidate = segments[index : index + len(batch) + 1]
+            if len(build_prompt(candidate, scene_id_start)) > budget:
+                break
+            batch = candidate
+
+        if not batch:
+            batch = [segments[index]]
+
+        batches.append((scene_id_start, batch))
+        scene_id_start += len(batch)
+        index += len(batch)
+
+    return batches
+
+
 def build_visual_mapping_prompt(
     segments: list[str],
     pipeline: dict[str, Any],
     *,
     scene_id_start: int = 1,
 ) -> str:
-    seg_chars = int(pipeline.get("scene_map_segment_chars", 80))
+    """Build a visual-map prompt for exactly these narration scenes (full text, no truncation)."""
+    del pipeline  # prompt template is shared; batching handles size
     scene_id_end = scene_id_start + len(segments) - 1
-
-    def _render(seg_len: int) -> str:
-        scene_lines = "\n".join(
-            f"Scene {scene_id_start + i}: {seg[:seg_len]}{'...' if len(seg) > seg_len else ''}"
-            for i, seg in enumerate(segments)
-        )
-        return (
-            load_prompt("visual_mapping.txt")
-            .replace("{scene_count}", str(len(segments)))
-            .replace("{scene_id_start}", str(scene_id_start))
-            .replace("{scene_id_end}", str(scene_id_end))
-            .replace("{narration_scenes}", scene_lines)
-        )
-
-    from common import MAX_NOTEBOOKLM_ASK_CHARS
-
-    # Leave margin for retry suffixes (e.g. "Reply with ONLY raw JSON...")
-    max_prompt = MAX_NOTEBOOKLM_ASK_CHARS - 64
-
-    prompt = _render(seg_chars)
-    while len(prompt) > max_prompt and seg_chars > 20:
-        seg_chars -= 10
-        prompt = _render(seg_chars)
-    return prompt
+    scene_lines = "\n".join(
+        f"Scene {scene_id_start + i}: {seg}"
+        for i, seg in enumerate(segments)
+    )
+    return (
+        load_prompt("visual_mapping.txt")
+        .replace("{scene_count}", str(len(segments)))
+        .replace("{scene_id_start}", str(scene_id_start))
+        .replace("{scene_id_end}", str(scene_id_end))
+        .replace("{narration_scenes}", scene_lines)
+    )
 
 
 def collect_visual_mapping(
@@ -316,15 +335,24 @@ def collect_visual_mapping(
     source_ids: list[str] | None = None,
 ) -> tuple[list[dict[str, Any]], str]:
     """Map narration scenes to slide visual specs."""
-    batch_size = max(1, int(pipeline.get("scene_map_batch_size", 12)))
+    from common import MAX_NOTEBOOKLM_ASK_CHARS
+
+    retry_margin = int(pipeline.get("scene_map_retry_margin", 64))
+
+    def _build_prompt(batch_segments: list[str], sid_start: int) -> str:
+        return build_visual_mapping_prompt(batch_segments, pipeline, scene_id_start=sid_start)
+
+    batches = pack_scene_batches(
+        segments,
+        max_prompt_chars=MAX_NOTEBOOKLM_ASK_CHARS,
+        build_prompt=_build_prompt,
+        retry_suffix_chars=retry_margin,
+    )
     all_mapping: list[dict[str, Any]] = []
     raw_parts: list[str] = []
-    scene_id_start = 1
-    total_batches = (len(segments) + batch_size - 1) // batch_size
+    total_batches = len(batches)
 
-    for batch_start in range(0, len(segments), batch_size):
-        batch_segments = segments[batch_start : batch_start + batch_size]
-        batch_num = batch_start // batch_size + 1
+    for batch_num, (scene_id_start, batch_segments) in enumerate(batches, 1):
         scene_id_end = scene_id_start + len(batch_segments) - 1
 
         if total_batches > 1:
@@ -356,8 +384,6 @@ def collect_visual_mapping(
             normalized = dict(row)
             normalized["scene_id"] = scene_id_start + i
             all_mapping.append(normalized)
-
-        scene_id_start += len(batch_segments)
 
     return all_mapping, "\n\n---\n\n".join(raw_parts)
 
