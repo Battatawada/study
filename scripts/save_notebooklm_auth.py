@@ -5,8 +5,8 @@ Fallback when `notebooklm login` crashes on "Navigation interrupted".
 Crime niche: use a SEPARATE profile from Psychology/Niche default.
 
 Usage:
-  python scripts/save_notebooklm_auth.py --profile retro
-  notebooklm -p retro auth check --test
+  python scripts/save_notebooklm_auth.py --profile study
+  notebooklm -p study auth check --test
 """
 
 from __future__ import annotations
@@ -15,15 +15,23 @@ import argparse
 import sys
 from pathlib import Path
 
+from urllib.parse import urlparse
+
 NOTEBOOKLM_URL = "https://notebooklm.google.com/"
+# Google rebranded NotebookLM → Gemini Notebook; login may land on notebook.google.com
+VALID_LOGIN_HOSTS = frozenset({"notebooklm.google.com", "notebook.google.com"})
+
+
+def _is_notebooklm_login_url(url: str) -> bool:
+    return (urlparse(url).hostname or "").lower() in VALID_LOGIN_HOSTS
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Save NotebookLM Playwright auth for a profile")
     parser.add_argument(
         "--profile",
-        default="retro",
-        help="notebooklm-py profile name (default: retro — separate from crime/psychology)",
+        default="study",
+        help="notebooklm-py profile name (default: study — separate from crime/psychology)",
     )
     args = parser.parse_args()
 
@@ -66,7 +74,7 @@ def main() -> int:
 
         input("\nWhen NotebookLM homepage is visible (retro account), press ENTER to save auth... ")
 
-        if "notebooklm.google.com" not in page.url:
+        if not _is_notebooklm_login_url(page.url):
             print(f"Warning: URL is {page.url}", file=sys.stderr)
             if input("Save anyway? [y/N] ").strip().lower() != "y":
                 context.close()

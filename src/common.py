@@ -406,9 +406,15 @@ def _notebooklm_ask_retryable(exc: Exception) -> bool:
     if any(s in msg for s in ("too large", "too long", "shorten it", "size limit", "status 3")):
         return False
     try:
-        from notebooklm.exceptions import ChatResponseParseError, NetworkError, RateLimitError
+        from notebooklm.exceptions import (
+            ChatResponseParseError,
+            NetworkError,
+            RateLimitError,
+            RPCTimeoutError,
+            ServerError,
+        )
 
-        if isinstance(exc, (NetworkError, RateLimitError, ChatResponseParseError)):
+        if isinstance(exc, (NetworkError, RateLimitError, ChatResponseParseError, ServerError, RPCTimeoutError)):
             return True
     except ImportError:
         pass

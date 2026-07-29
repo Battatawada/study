@@ -1,9 +1,9 @@
 # Refresh GitHub secret from local NotebookLM storage_state.json (Retro Movie Archive)
-# Prerequisite: notebooklm -p retro auth check --test must pass
+# Prerequisite: notebooklm -p study auth check --test must pass
 
 $ErrorActionPreference = "Stop"
 $Repo = if ($env:RETRO_GH_REPO) { $env:RETRO_GH_REPO } else { "Battatawada/study" }
-$Profile = if ($env:NOTEBOOKLM_PROFILE) { $env:NOTEBOOKLM_PROFILE } else { "retro" }
+$Profile = if ($env:NOTEBOOKLM_PROFILE) { $env:NOTEBOOKLM_PROFILE } else { "study" }
 $storage = Join-Path $env:USERPROFILE ".notebooklm\profiles\$Profile\storage_state.json"
 
 if (-not (Test-Path $storage)) {

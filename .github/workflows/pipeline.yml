@@ -6,11 +6,11 @@ on:
   workflow_dispatch:
     inputs:
       topic_slug:
-        description: "Optional topic slug from config/topic_queue.json"
+        description: "Optional slug from config/topic_queue.json (e.g. data-structures — not the full title)"
         required: false
         type: string
       movie_slug:
-        description: "Legacy alias for topic_slug"
+        description: "Legacy alias for topic_slug (slug only, e.g. data-structures)"
         required: false
         type: string
       skip_phase1:
@@ -177,7 +177,7 @@ jobs:
         if: ${{ github.event.inputs.skip_phase1 != 'true' && github.event.inputs.skip_phase2 != 'true' }}
         env:
           NOTEBOOKLM_AUTH_JSON: ${{ secrets.NOTEBOOKLM_AUTH_JSON }}
-          NOTEBOOKLM_PROFILE: retro
+          NOTEBOOKLM_PROFILE: study
         run: |
           if [ -z "$NOTEBOOKLM_AUTH_JSON" ]; then
             echo "NOTEBOOKLM_AUTH_JSON secret is empty"
@@ -189,7 +189,7 @@ jobs:
         if: ${{ github.event.inputs.skip_phase1 != 'true' && github.event.inputs.skip_phase2 != 'true' }}
         env:
           NOTEBOOKLM_AUTH_JSON: ${{ secrets.NOTEBOOKLM_AUTH_JSON }}
-          NOTEBOOKLM_PROFILE: retro
+          NOTEBOOKLM_PROFILE: study
         run: |
           ARGS=(--output output)
           TOPIC_SLUG="${{ github.event.inputs.topic_slug }}"

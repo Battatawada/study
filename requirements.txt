@@ -1,5 +1,5 @@
 azure-cognitiveservices-speech>=1.38.0
-notebooklm-py==0.8.0b5
+notebooklm-py @ git+https://github.com/teng-lin/notebooklm-py@7d0aa42c1b858780250f9c6cfbea422aff3e8ce0
 edge-tts>=7.0.0
 httpx>=0.27.0
 Pillow>=10.0.0

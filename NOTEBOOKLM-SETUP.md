@@ -1,6 +1,8 @@
-# NotebookLM setup — Retro Movie Archive (separate profile)
+# NotebookLM setup — Simply Explained (separate profile)
 
 Use a **dedicated NotebookLM Google account/profile** so crime/psychology notebooks never collide.
+
+**Package:** pinned to [notebooklm-py main](https://github.com/teng-lin/notebooklm-py) (includes Gemini Notebook login fix, commit `6f75779`). Google rebranded NotebookLM → **Gemini Notebook** — login may redirect to `notebook.google.com` (old `notebooklm.google.com` still works).
 
 ## Local (one-time)
 
@@ -8,30 +10,30 @@ Use a **dedicated NotebookLM Google account/profile** so crime/psychology notebo
 cd "C:\Users\Pracheer\Music\Retro Movie Archive"
 
 # Create isolated profile
-notebooklm profile create retro
-notebooklm -p retro login
-notebooklm -p retro status
+notebooklm profile create study
+notebooklm -p study login
+notebooklm -p study status
 ```
 
 Verify:
 
 ```powershell
-$env:NOTEBOOKLM_PROFILE = "retro"
+$env:NOTEBOOKLM_PROFILE = "study"
 notebooklm auth check --test --json
 ```
 
 ## Export secret for GitHub Actions
 
 ```powershell
-python scripts/save_notebooklm_auth.py --profile retro
-# Or: scripts/export_notebooklm_secret.ps1 with profile retro
+python scripts/save_notebooklm_auth.py --profile study
+# Or: scripts/export_notebooklm_secret.ps1 with profile study
 ```
 
 Copy output → GitHub secret **`NOTEBOOKLM_AUTH_JSON`** on the retro repo.
 
 ## GitHub Actions
 
-Workflow sets `NOTEBOOKLM_PROFILE: retro` on Phase 1 steps.
+Workflow sets `NOTEBOOKLM_PROFILE: study` on Phase 1 steps.
 
 Auth JSON is profile-specific — do not reuse crime/psychology secrets.
 
@@ -53,4 +55,6 @@ NotebookLM analyzes **video subtitles/transcripts** per sample video, then write
 
 ## Refresh cadence
 
-Re-run `notebooklm -p retro login` every 1–2 weeks; re-export `NOTEBOOKLM_AUTH_JSON`.
+Re-run `notebooklm -p study login` every 1–2 weeks; re-export `NOTEBOOKLM_AUTH_JSON`.
+
+For unattended CI, consider master-token auth (`notebooklm login --master-token --account you@example.com`) — see the [notebooklm-py auth docs](https://github.com/teng-lin/notebooklm-py/blob/main/docs/auth-cookie-lifecycle.md).
