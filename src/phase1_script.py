@@ -173,6 +173,45 @@ def fetch_srt_text(movie_slug: str, pipeline: dict[str, Any]) -> str:
     return content
 
 
+def _norm_topic_key(text: str) -> str:
+    return re.sub(r"[^a-z0-9]+", " ", text.lower()).strip()
+
+
+def find_topic_entry(topics: list[dict[str, Any]], selector: str) -> dict[str, Any] | None:
+    """Resolve a queue entry by slug, or tolerate a full title pasted by mistake."""
+    sel = selector.strip()
+    if not sel:
+        return None
+    sel_lower = sel.lower()
+    sel_norm = _norm_topic_key(sel)
+
+    for topic in topics:
+        slug = str(topic.get("slug", ""))
+        if slug == sel or slug.lower() == sel_lower:
+            return topic
+
+    for topic in topics:
+        for key in ("topic", "title"):
+            val = str(topic.get(key, "")).strip()
+            if val and val.lower() == sel_lower:
+                return topic
+
+    for topic in topics:
+        slug_phrase = _norm_topic_key(str(topic.get("slug", "")).replace("-", " "))
+        if slug_phrase and slug_phrase.rstrip("s") in sel_norm:
+            return topic
+
+    for topic in topics:
+        for key in ("topic", "title"):
+            val_norm = _norm_topic_key(str(topic.get(key, "")))
+            if not val_norm:
+                continue
+            if val_norm in sel_norm or sel_norm in val_norm:
+                return topic
+
+    return None
+
+
 def pick_topic_from_queue(history: list[dict[str, Any]]) -> dict[str, Any]:
     queue = load_json(CONFIG / "topic_queue.json")
     topics = [t for t in queue.get("topics", []) if t.get("enabled", True)]
@@ -334,6 +373,12 @@ VALID_DIAGRAM_TYPES = frozenset({
     "flow_steps",
     "list_items",
     "concept",
+    "memory_layout",
+    "array_access",
+    "linked_nodes",
+    "tree_nodes",
+    "stack_heap",
+    "warning_icons",
 })
 
 
@@ -366,7 +411,7 @@ def enrich_diagram_spec(row: dict[str, Any], narration: str) -> tuple[str, str, 
         "visual_bullets": row.get("visual_bullets", []),
     }
     diagram_type = str(row.get("diagram_type", "")).strip().lower()
-    if diagram_type not in VALID_DIAGRAM_TYPES:
+    if diagram_type not in VALID_DIAGRAM_TYPES or diagram_type == "concept":
         diagram_type = _infer_diagram_type(probe)
 
     diagram_prompt = str(row.get("diagram_prompt", "")).strip()
@@ -390,7 +435,7 @@ def resolve_scene_visuals(
         if isinstance(bullets, str):
             bullets = [bullets]
         diagram_type, diagram_prompt, diagram_labels = enrich_diagram_spec(row, text)
-        out.append({
+        scene_data = {
             "scene_id": sid,
             "narration": text,
             "visual_title": str(row.get("visual_title", f"Concept {sid}")).strip(),
@@ -401,7 +446,14 @@ def resolve_scene_visuals(
             "diagram_labels": diagram_labels,
             "accent_color": row.get("accent_color", default_accent),
             "music_mood": row.get("music_mood", "calm"),
-        })
+        }
+        if isinstance(row.get("animation"), dict):
+            scene_data["animation"] = row["animation"]
+        if isinstance(row.get("visualization"), dict):
+            scene_data["visualization"] = row["visualization"]
+        if isinstance(row.get("algorithm_state"), dict):
+            scene_data["algorithm_state"] = row["algorithm_state"]
+        out.append(scene_data)
     return out
 
 
@@ -816,9 +868,15 @@ def main() -> None:
     else:
         if topic_slug_arg:
             queue = load_json(CONFIG / "topic_queue.json")
-            entry = next((t for t in queue.get("topics", []) if t["slug"] == topic_slug_arg), None)
+            topics = queue.get("topics", [])
+            entry = find_topic_entry(topics, topic_slug_arg)
             if not entry:
-                sys.exit(f"Unknown --topic-slug: {topic_slug_arg}")
+                enabled = [t["slug"] for t in topics if t.get("enabled", True)]
+                sys.exit(
+                    f"Unknown --topic-slug: {topic_slug_arg!r}. "
+                    f"Use a slug from config/topic_queue.json (e.g. data-structures), not the full title. "
+                    f"Enabled slugs: {', '.join(enabled)}"
+                )
             topic_slug = entry["slug"]
             topic = entry.get("topic") or entry.get("title", topic_slug)
             duration = int(entry.get("minutes", duration))
@@ -970,9 +1028,12 @@ def main() -> None:
                 "topic": topic,
                 "title": locked_title,
                 "thumbnail_text": hook_pkg.get("thumbnail_text"),
-                "bg_color": thumb_spec.get("bg_color", "#0f0f1a"),
+                "bg_color": thumb_spec.get("bg_color", "#0a0a14"),
+                "highlight_color": thumb_spec.get("highlight_color", "#06B6D4"),
                 "time_badge": thumb_spec.get("time_badge", f"{duration} MIN"),
                 "render_mode": render_mode,
+                "visual_thumbnail": thumb_spec.get("visual_thumbnail", render_mode == "slides"),
+                "thumbnail_style": thumb_spec.get("thumbnail_style", "visual" if render_mode == "slides" else "text"),
             }
             print(f"  -> thumbnail spec: {thumbnail_meta.get('overlay_title')}", flush=True)
 

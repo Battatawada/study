@@ -8,24 +8,30 @@ Icon emoji (optional accent): {icon_emoji}
 STYLE BRIEF (match Codist / Just Explained / Infinite Codes thumbnail patterns):
 {style_notes}
 
-We compose thumbnails programmatically (dark bg + bold text + emoji). Your job: specify text layout.
+We compose thumbnails programmatically. For CS / data-structure topics we render a VISUAL thumbnail:
+- Left: bold typography (DATA white, STRUCTURES blue, large subtitle VISUALIZED in cyan)
+- Right: frozen animation frames — array mid-insertion, linked list, tree, graph, stack
+- Cyan accent on highlighted memory cell / active pointer
 
 Reply with ONLY raw JSON:
 {{
-  "overlay_title": "2–4 words — topic shorthand (e.g. HTTP CODES, DATA STRUCTURES)",
-  "overlay_subtitle": "EXPLAINED or IN 14 MIN",
-  "time_badge": "14 MIN or 20 MIN — match video length",
+  "thumbnail_style": "visual",
+  "title_line1": "DATA",
+  "title_line2": "STRUCTURES",
+  "overlay_subtitle": "VISUALIZED",
+  "time_badge": "22 MIN",
   "text_color": "#FFFFFF",
   "accent_color": "#3B82F6",
-  "bg_color": "#0f0f1a",
-  "icon_emoji": "single emoji matching topic",
-  "style_notes": "dark navy bg, bold white title, blue accent on subtitle chip, emoji top-right, clean sans-serif"
+  "highlight_color": "#06B6D4",
+  "bg_color": "#0a0a14",
+  "visual_thumbnail": true
 }}
 
 Rules:
+- Use thumbnail_style "visual" for data structures, algorithms, CS topics
+- Use thumbnail_style "text" only for non-visual topics (HTTP codes without diagrams, etc.)
+- overlay_subtitle: VISUALIZED | SIMPLIFIED | FROM SCRATCH | ACTUALLY EXPLAINED
+- time_badge matches video length
 - High contrast, readable on mobile at 120px width
-- Dark background (#0f0f1a or similar) — NOT white
-- Title = topic name, NOT clickbait question
-- Time badge in corner (e.g. "14 MIN") — matches competitor pattern
-- No faces required — concept/icon driven
-- No studio logos, no fake red arrows
+- Dark background — NOT white
+- No faces, no fake red arrows, no clickbait questions

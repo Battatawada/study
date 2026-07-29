@@ -16,6 +16,15 @@ TITLE_COLOR = "#FFFFFF"
 BULLET_COLOR = "#A0A0B0"
 WATERMARK_COLOR = "#3a3a4a"
 BAR_WIDTH = 8
+DIAGRAM_HEIGHT = 520
+ANIM_REVEAL_RATIO = 0.55  # reveal completes in first 55% of animation frames
+
+# Diagram types that render bullets inside the diagram — skip duplicate list below
+_SELF_CONTAINED_DIAGRAMS = frozenset({
+    "list_items",
+    "warning_icons",
+    "status_code",
+})
 
 
 def _hex_to_rgb(hex_color: str) -> tuple[int, int, int]:
@@ -62,6 +71,15 @@ def _wrap_title(text: str, font: ImageFont.FreeTypeFont | ImageFont.ImageFont, m
     return lines[:2]
 
 
+def _should_show_bullets(scene: dict[str, Any], bullets: list[str]) -> bool:
+    if not bullets:
+        return False
+    diagram_type = infer_diagram_type(scene)
+    if diagram_type in _SELF_CONTAINED_DIAGRAMS:
+        return False
+    return True
+
+
 def render_slide_frame(
     scene: dict[str, Any],
     dest: Path,
@@ -71,6 +89,7 @@ def render_slide_frame(
     bg_color: str = DEFAULT_BG,
     channel_name: str = "Byte Glossary",
     progress: float = 1.0,
+    frame_t: float = 0.0,
 ) -> Path:
     """Render one slide frame; progress 0..1 drives diagram reveal animation."""
     img = Image.new("RGB", (width, height), _hex_to_rgb(bg_color))
@@ -88,58 +107,49 @@ def render_slide_frame(
 
     title = str(scene.get("visual_title", "Concept")).strip()
     bullets = [str(b).strip() for b in scene.get("visual_bullets", []) if str(b).strip()][:3]
-    diagram_type = infer_diagram_type(scene)
+    show_bullets = _should_show_bullets(scene, bullets)
 
     x_start = 80
-    y = 80
+    y = 72
     max_text_width = width - 160
 
     for line in _wrap_title(title, title_font, max_text_width):
         draw.text((x_start, y), line, fill=_hex_to_rgb(TITLE_COLOR), font=title_font)
         y += 78
 
-    # Diagram panel — center of slide
-    diagram_top = 200
-    diagram_height = 420
-    diagram_bbox = (60, diagram_top, width - 60, diagram_height)
+    diagram_top = 188
+    diagram_height = DIAGRAM_HEIGHT
+    diagram_bbox = (48, diagram_top, width - 48, diagram_top + diagram_height)
+
+    # Subtle panel glow
+    glow_alpha = int(12 + 8 * min(1.0, progress))
+    panel_fill = (14 + glow_alpha // 4, 14 + glow_alpha // 4, 22 + glow_alpha // 3)
     draw.rounded_rectangle(
         diagram_bbox,
-        radius=16,
-        outline=tuple(min(255, c + 20) for c in accent_rgb),
-        width=1,
-        fill=(18, 18, 28),
+        radius=20,
+        outline=tuple(min(255, c + 30) for c in accent_rgb),
+        width=2,
+        fill=panel_fill,
     )
-    inner_bbox = (diagram_bbox[0] + 12, diagram_bbox[1] + 12, diagram_bbox[2] - 12, diagram_bbox[3] - 12)
+    inner_bbox = (diagram_bbox[0] + 16, diagram_bbox[1] + 16, diagram_bbox[2] - 16, diagram_bbox[3] - 16)
     draw_diagram(
         draw,
         scene,
         inner_bbox,
         accent_rgb,
         progress=progress,
+        frame_t=frame_t,
         label_font=diagram_label_font,
         small_font=diagram_small_font,
     )
 
-    diagram_prompt = str(scene.get("diagram_prompt", "")).strip()
-    if diagram_prompt and progress > 0.55:
-        caption_alpha = max(0.0, min(1.0, (progress - 0.55) / 0.35))
-        cap_color = (
-            int(100 * caption_alpha + 40 * (1 - caption_alpha)),
-            int(100 * caption_alpha + 40 * (1 - caption_alpha)),
-            int(120 * caption_alpha + 50 * (1 - caption_alpha)),
-        )
-        cap_y = inner_bbox[3] - 8
-        cap_text = diagram_prompt[:72] + ("…" if len(diagram_prompt) > 72 else "")
-        draw.text((inner_bbox[0] + 8, cap_y), cap_text, fill=cap_color, font=diagram_small_font, anchor="ls")
-
-    # Bullets fade in during final third of animation
-    bullet_progress = max(0.0, min(1.0, (progress - 0.65) / 0.35))
-    if bullet_progress > 0 and bullets:
-        y_bullets = diagram_top + diagram_height + 36
+    # Bullets fade in after diagram — only when they add info beyond the diagram
+    bullet_progress = max(0.0, min(1.0, (progress - 0.6) / 0.35))
+    if bullet_progress > 0 and show_bullets:
+        y_bullets = diagram_top + diagram_height + 32
         for bullet in bullets:
-            wrapped = textwrap.wrap(bullet, width=48)
+            wrapped = textwrap.wrap(bullet, width=52)
             for i, line in enumerate(wrapped):
-                alpha = int(255 * bullet_progress)
                 color = (
                     int(_hex_to_rgb(BULLET_COLOR)[0] * bullet_progress + 18 * (1 - bullet_progress)),
                     int(_hex_to_rgb(BULLET_COLOR)[1] * bullet_progress + 18 * (1 - bullet_progress)),
@@ -178,6 +188,7 @@ def render_slide(
         bg_color=bg_color,
         channel_name=channel_name,
         progress=1.0,
+        frame_t=0.5,
     )
 
 
@@ -194,10 +205,10 @@ def render_slide_frames(
     """Render progressive-reveal animation frames for one scene."""
     frames_dir.mkdir(parents=True, exist_ok=True)
     paths: list[Path] = []
-    n = max(8, n_frames)
-    # Animation completes in first ~40% of frames; hold final state for the rest
-    anim_frames = max(8, min(n, int(n * 0.4)))
+    n = max(12, n_frames)
+    anim_frames = max(12, min(n, int(n * ANIM_REVEAL_RATIO)))
     for i in range(n):
+        frame_t = i / max(1, n - 1)
         if i < anim_frames:
             progress = i / (anim_frames - 1) if anim_frames > 1 else 1.0
         else:
@@ -211,6 +222,7 @@ def render_slide_frames(
             bg_color=bg_color,
             channel_name=channel_name,
             progress=progress,
+            frame_t=frame_t,
         )
         paths.append(dest)
     return paths

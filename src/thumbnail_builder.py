@@ -229,6 +229,13 @@ def parse_thumbnail_json(raw: str) -> dict[str, Any]:
 
 def build_thumbnail_from_meta(meta: dict[str, Any], output_dir: Path) -> Path:
     out = output_dir / "thumbnail.png"
+    try:
+        from thumbnail_visual import compose_visual_thumbnail, should_use_visual_thumbnail
+
+        if should_use_visual_thumbnail(meta):
+            return compose_visual_thumbnail(meta, out)
+    except ImportError:
+        pass
     if meta.get("bg_color") or meta.get("render_mode") == "slides":
         return compose_text_thumbnail(meta, out)
     work = output_dir / "_thumb_work"

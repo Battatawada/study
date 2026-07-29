@@ -14,6 +14,10 @@ from typing import Any
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from slide_builder import render_slide, render_slide_frames  # noqa: E402
 from diagram_renderer import infer_diagram_type  # noqa: E402
+from html_slide import write_slide_html  # noqa: E402
+from animation_presets import uses_semantic_animation  # noqa: E402
+from semantic_slide import build_semantic_slide_html  # noqa: E402
+from html_capture import HtmlSlideCaptureSession  # noqa: E402
 
 
 FPS = 30
@@ -375,12 +379,12 @@ def _animated_slide_to_video(
     ])
 
 
-def _run_slide_render_sync(
+def _run_html_slide_render_sync(
     run_id: str,
     *,
     runs_dir: Path,
 ) -> None:
-    """Render teaching video from slide specs + narration audio."""
+    """Render teaching video via HTML/CSS + Playwright frame capture at 1080p."""
     run_path = runs_dir / run_id
     state_path = run_path / "state.json"
     inputs = run_path / "inputs"
@@ -391,7 +395,8 @@ def _run_slide_render_sync(
 
     state = json.loads(state_path.read_text(encoding="utf-8"))
     state["status"] = "running"
-    state["phase"] = "slides"
+    state["phase"] = "html_slides"
+    state["render_engine"] = "html"
     _write_state(state_path, state)
 
     meta = json.loads((inputs / "metadata.json").read_text(encoding="utf-8"))
@@ -407,52 +412,77 @@ def _run_slide_render_sync(
 
     bg_color = pipeline.get("slide_bg_color", "#0f0f1a")
     channel_name = meta.get("niche", "Simply Explained")
-    slide_animation = bool(pipeline.get("slide_animation", True))
-    animation_min_frames = int(pipeline.get("slide_animation_min_frames", 24))
+    slide_width = int(pipeline.get("slide_width", 1920))
+    slide_height = int(pipeline.get("slide_height", 1080))
+    capture_fps = int(pipeline.get("slide_capture_fps", os.environ.get("STUDY_CAPTURE_FPS", "24")))
 
     clip_paths: list[Path] = []
     total = len(scenes)
     state["total_scenes"] = total
 
-    for i, scene in enumerate(scenes):
-        sid = int(scene["scene_id"])
-        narr_dur = dur_by_id.get(sid, 5.0)
-        clip_path = work / f"clip_{sid:02d}.mp4"
-        slide_path = work / f"slide_{sid:02d}.png"
+    with HtmlSlideCaptureSession(
+        width=slide_width,
+        height=slide_height,
+        fps=capture_fps,
+        work_dir=work / "html_capture",
+    ) as session:
+        for i, scene in enumerate(scenes):
+            sid = int(scene["scene_id"])
+            narr_dur = dur_by_id.get(sid, 5.0)
+            clip_path = work / f"clip_{sid:02d}.mp4"
+            html_path = work / f"scene_{sid:02d}.html"
 
-        if not slide_path.exists():
-            render_slide(scene, slide_path, bg_color=bg_color, channel_name=channel_name)
+            if clip_path.exists():
+                try:
+                    _assert_duration(clip_path, narr_dur, f"html clip {sid}")
+                    clip_paths.append(clip_path)
+                    continue
+                except RuntimeError:
+                    clip_path.unlink(missing_ok=True)
 
-        if clip_path.exists():
-            try:
-                _assert_duration(clip_path, narr_dur, f"slide clip {sid}")
-                clip_paths.append(clip_path)
-                continue
-            except RuntimeError:
-                clip_path.unlink(missing_ok=True)
+            state["current_scene"] = sid
+            state["clips_ready"] = len(clip_paths)
+            state["current_diagram"] = scene.get("diagram_type") or infer_diagram_type(scene)
+            _write_state(state_path, state)
 
-        state["current_scene"] = sid
-        state["clips_ready"] = len(clip_paths)
-        state["current_diagram"] = scene.get("diagram_type") or infer_diagram_type(scene)
-        _write_state(state_path, state)
+            use_semantic = uses_semantic_animation(scene)
+            if use_semantic:
+                html_path.write_text(
+                    build_semantic_slide_html(
+                        scene,
+                        bg_color=bg_color,
+                        channel_name=channel_name,
+                        duration_sec=narr_dur,
+                    ),
+                    encoding="utf-8",
+                )
+            else:
+                write_slide_html(scene, html_path, bg_color=bg_color, channel_name=channel_name)
+            session.capture_scene(html_path, narr_dur, clip_path, semantic=use_semantic)
+            _assert_duration(clip_path, narr_dur, f"html clip {sid}")
+            clip_paths.append(clip_path)
+            state["clips_ready"] = len(clip_paths)
+            state["completed"] = [int(s["scene_id"]) for s in scenes[: i + 1]]
+            _write_state(state_path, state)
 
-        if slide_animation:
-            _animated_slide_to_video(
-                scene,
-                narr_dur,
-                clip_path,
-                work,
-                bg_color=bg_color,
-                channel_name=channel_name,
-                min_frames=animation_min_frames,
-            )
-        else:
-            _slide_to_video(slide_path, narr_dur, clip_path)
-        _assert_duration(clip_path, narr_dur, f"slide clip {sid}")
-        clip_paths.append(clip_path)
-        state["clips_ready"] = len(clip_paths)
-        state["completed"] = [int(s["scene_id"]) for s in scenes[: i + 1]]
-        _write_state(state_path, state)
+    _finalize_slide_video(run_id, runs_dir=runs_dir, scenes=scenes, clip_paths=clip_paths, dur_by_id=dur_by_id, state=state, state_path=state_path)
+
+
+def _finalize_slide_video(
+    run_id: str,
+    *,
+    runs_dir: Path,
+    scenes: list[dict[str, Any]],
+    clip_paths: list[Path],
+    dur_by_id: dict[int, float],
+    state: dict[str, Any],
+    state_path: Path,
+) -> None:
+    """Concat slide clips, mix audio, mux final video (shared by PIL and Xvfb paths)."""
+    run_path = runs_dir / run_id
+    inputs = run_path / "inputs"
+    work = run_path / "work"
+    out_dir = run_path / "output"
 
     state["phase"] = "concat"
     _write_state(state_path, state)
@@ -506,6 +536,7 @@ def _run_slide_render_sync(
         ])
         voice_audio = full_audio
 
+    durations = json.loads((inputs / "scene_durations.json").read_text(encoding="utf-8"))
     video_dur = _probe_duration(video_only)
     audio_in = str(_mix_bg_music(voice_audio, inputs, work, video_dur, scene_durations=durations))
 
@@ -533,9 +564,121 @@ def _run_slide_render_sync(
 
     state["status"] = "complete"
     state["phase"] = "done"
-    state["clips_ready"] = total
+    state["clips_ready"] = len(scenes)
     state["error"] = None
     _write_state(state_path, state)
+
+
+def _run_slide_render_sync(
+    run_id: str,
+    *,
+    runs_dir: Path,
+) -> None:
+    """Render teaching video via HTML/CSS frame capture (no PIL fallback)."""
+    run_path = runs_dir / run_id
+    inputs = run_path / "inputs"
+    pipeline_path = inputs / "pipeline.json"
+    pipeline: dict[str, Any] = {}
+    if pipeline_path.exists():
+        pipeline = json.loads(pipeline_path.read_text(encoding="utf-8"))
+
+    render_engine = str(pipeline.get("render_engine", "html")).lower()
+    if render_engine in ("html", "xvfb"):
+        _run_html_slide_render_sync(run_id, runs_dir=runs_dir)
+        return
+    if render_engine == "pil":
+        raise RuntimeError("PIL render engine is disabled; use render_engine=html")
+    raise RuntimeError(f"Unsupported render_engine={render_engine!r}")
+
+
+def _run_pil_slide_render_sync(
+    run_id: str,
+    *,
+    runs_dir: Path,
+) -> None:
+    """Render teaching video from PIL slide frames (legacy/fallback engine)."""
+    run_path = runs_dir / run_id
+    state_path = run_path / "state.json"
+    inputs = run_path / "inputs"
+    work = run_path / "work"
+    out_dir = run_path / "output"
+    work.mkdir(parents=True, exist_ok=True)
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    state = json.loads(state_path.read_text(encoding="utf-8"))
+    state["status"] = "running"
+    state["phase"] = "slides"
+    state["render_engine"] = "pil"
+    _write_state(state_path, state)
+
+    meta = json.loads((inputs / "metadata.json").read_text(encoding="utf-8"))
+    pipeline_path = inputs / "pipeline.json"
+    pipeline: dict[str, Any] = {}
+    if pipeline_path.exists():
+        pipeline = json.loads(pipeline_path.read_text(encoding="utf-8"))
+
+    scene_clips = json.loads((inputs / "scene_clips.json").read_text(encoding="utf-8"))
+    scenes = scene_clips.get("scenes", scene_clips if isinstance(scene_clips, list) else [])
+    durations = json.loads((inputs / "scene_durations.json").read_text(encoding="utf-8"))
+    dur_by_id = {int(d["scene_id"]): float(d["duration_sec"]) for d in durations}
+
+    bg_color = pipeline.get("slide_bg_color", "#0f0f1a")
+    channel_name = meta.get("niche", "Simply Explained")
+    slide_animation = bool(pipeline.get("slide_animation", True))
+    animation_min_frames = int(pipeline.get("slide_animation_min_frames", 24))
+
+    clip_paths: list[Path] = []
+    state["total_scenes"] = len(scenes)
+
+    for i, scene in enumerate(scenes):
+        sid = int(scene["scene_id"])
+        narr_dur = dur_by_id.get(sid, 5.0)
+        clip_path = work / f"clip_{sid:02d}.mp4"
+        slide_path = work / f"slide_{sid:02d}.png"
+
+        if not slide_path.exists():
+            render_slide(scene, slide_path, bg_color=bg_color, channel_name=channel_name)
+
+        if clip_path.exists():
+            try:
+                _assert_duration(clip_path, narr_dur, f"slide clip {sid}")
+                clip_paths.append(clip_path)
+                continue
+            except RuntimeError:
+                clip_path.unlink(missing_ok=True)
+
+        state["current_scene"] = sid
+        state["clips_ready"] = len(clip_paths)
+        state["current_diagram"] = scene.get("diagram_type") or infer_diagram_type(scene)
+        _write_state(state_path, state)
+
+        if slide_animation:
+            _animated_slide_to_video(
+                scene,
+                narr_dur,
+                clip_path,
+                work,
+                bg_color=bg_color,
+                channel_name=channel_name,
+                min_frames=animation_min_frames,
+            )
+        else:
+            _slide_to_video(slide_path, narr_dur, clip_path)
+        _assert_duration(clip_path, narr_dur, f"slide clip {sid}")
+        clip_paths.append(clip_path)
+        state["clips_ready"] = len(clip_paths)
+        state["completed"] = [int(s["scene_id"]) for s in scenes[: i + 1]]
+        _write_state(state_path, state)
+
+    _finalize_slide_video(
+        run_id,
+        runs_dir=runs_dir,
+        scenes=scenes,
+        clip_paths=clip_paths,
+        dur_by_id=dur_by_id,
+        state=state,
+        state_path=state_path,
+    )
 
 
 async def run_render_async(

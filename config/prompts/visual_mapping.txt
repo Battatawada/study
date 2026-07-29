@@ -1,6 +1,6 @@
 You are building a visual scene map for an automated teaching video.
 
-Each scene gets an **animated diagram** (request flows, cache, redirects, errors, comparisons) — like Codist / Just Explained / Infinite Codes.
+Each scene gets an **animated diagram** (CS concepts, request flows, comparisons) — like Codist / Just Explained / Infinite Codes.
 
 The narration is split into {scene_count} scenes (one voiceover beat each).
 Each scene needs: title + diagram spec + 1–3 bullet points.
@@ -13,12 +13,20 @@ Reply with ONLY valid JSON (no markdown):
   "scenes": [
     {{
       "scene_id": 1,
-      "visual_title": "2–6 words — concept name (e.g. HTTP 304 Not Modified)",
+      "visual_title": "2–6 words — concept name (e.g. Contiguous Memory)",
       "visual_bullets": ["keyword fact max 8 words", "optional", "optional"],
       "visual_type": "concept_card|list|comparison|example|recap",
-      "diagram_type": "http_request|http_cache|http_redirect|http_error_client|http_error_server|status_code|comparison|flow_steps|list_items|concept",
-      "diagram_prompt": "One sentence: what the illustration must show (e.g. browser checks cache, sends conditional GET, server returns 304 with no body)",
-      "diagram_labels": ["arrow/box label 1", "arrow/box label 2", "optional label 3"],
+      "diagram_type": "memory_layout|array_access|linked_nodes|tree_nodes|stack_heap|warning_icons|http_request|http_cache|http_redirect|http_error_client|http_error_server|status_code|comparison|flow_steps|list_items|concept",
+      "diagram_prompt": "One sentence: what the illustration must show",
+      "diagram_labels": ["box/arrow label 1", "label 2", "optional label 3"],
+      "visualization": {{
+        "kind": "memory",
+        "transitions": [
+          {{"state": {{"array": []}}}},
+          {{"state": {{"array": [10, 20, 30, 40], "addresses": ["0x000","0x008","0x010","0x018"]}}}},
+          {{"state": {{"array": [10, 20, 30, 40], "activeIndex": 3, "highlight": [3]}}}}
+        ]
+      }},
       "accent_color": "#3B82F6",
       "music_mood": "calm|focus|example|recap|transition",
       "reason": "brief note"
@@ -29,28 +37,49 @@ Reply with ONLY valid JSON (no markdown):
 Rules:
 - Exactly {scene_count} scenes, scene_id {scene_id_start}..{scene_id_end}
 - **diagram_type is REQUIRED** on every scene — never leave blank
-- **diagram_prompt is REQUIRED** — describe the visual story NotebookLM wants drawn (who sends what to whom)
+- **diagram_prompt is REQUIRED** — internal production note only (never shown on screen); describe the visual story
 - **diagram_labels** — short text on arrows/boxes (max 6 words each):
+  - memory_layout: ["RAM", "contiguous block", "address 0x000"]
+  - array_access: ["base address", "base + index × size", "target element"]
+  - linked_nodes: ["Head", "Node A", "Node B", "null"]
+  - tree_nodes: ["root", "left child", "right child"]
+  - stack_heap: ["Stack (LIFO)", "Heap (dynamic)"]
+  - warning_icons: ["consequence 1", "consequence 2", "consequence 3"]
+  - flow_steps: ["step 1 label", "step 2 label", "step 3 label"]
+  - comparison: ["left option", "right option"]
   - http_request: ["GET /api/users", "200 OK + JSON body"]
   - http_cache: ["GET + If-Modified-Since", "304 Not Modified (no body)"]
   - http_redirect: ["GET /old-page", "302 Redirect", "GET /new-page"]
-  - flow_steps: ["step 1 label", "step 2 label", "step 3 label"]
-  - comparison: ["left option", "right option"]
   - status_code / errors: can be empty — code comes from visual_title
 - diagram_type guide:
-  - http_request: any request/response exchange (GET, POST, PUT, DELETE)
-  - http_cache: 304, ETag, If-Modified-Since, browser cache hits
-  - http_redirect: 301, 302, 307, Location header, redirect chains
-  - http_error_client: 400–499 (404, 403, 401, etc.)
-  - http_error_server: 500–599 (500, 503, etc.)
+  - memory_layout: contiguous RAM, allocation, address space
+  - array_access: index math, lockers, O(1) lookup
+  - linked_nodes: pointers, next node chains
+  - tree_nodes: binary trees, parent/child hierarchy
+  - stack_heap: stack vs heap memory regions
+  - warning_icons: consequences, failures, costs of wrong choices (NOT generic lists)
+  - http_request: any request/response exchange
+  - http_cache: 304, ETag, browser cache hits
+  - http_redirect: 301, 302, Location header
+  - http_error_client: 400–499
+  - http_error_server: 500–599
   - status_code: defining one specific status code number
   - comparison: X vs Y side-by-side
-  - flow_steps: multi-step pipeline (DNS → TCP → TLS → HTTP)
-  - list_items: enumerating 3–4 items with numbers
-  - concept: ONLY when nothing else fits — avoid overusing
+  - flow_steps: multi-step pipeline (use for processes with 2–4 steps)
+  - list_items: ONLY for simple enumerations where bullets ARE the content
+  - concept: LAST RESORT — almost never use; if you pick concept the slide will look broken
+- For data structure / CS topics, prefer memory_layout, array_access, linked_nodes, tree_nodes over generic flow_steps
+- **visualization** (preferred for CS): describe STATE CHANGES, not animation commands
+  - AI describes *what changed*; the engine computes *how* it animates
+  - Use **transitions**: list of states A→B→C (each state = memory snapshot)
+  - Or use **events**: semantic vocabulary — Allocate, Visit, Highlight, Compare, Swap, Shift, Insert, Write, Link, Caption
+  - State fields: array (memory cells), addresses, basePointer, activeIndex, highlight (indices), caption
+  - Use null or "_" for empty memory slots during insertion
+  - Example insertion: [10,20,30,40] → [10,20,null,30,40] → [10,20,25,30,40]
+  - NEVER emit pointer_move, shift, swap as animation ops — only as state or events
+  - If omitted, presets generate transitions from diagram_type
+- visual_bullets should complement the diagram, NOT duplicate it verbatim
 - visual_title = concept being defined in that beat
-- visual_bullets = keywords from narration (not full sentences)
 - accent_color palette: #3B82F6 blue, #10B981 green, #F59E0B amber, #EF4444 red, #8B5CF6 purple, #06B6D4 cyan
-- New accent_color when switching major concept groups (1xx→2xx→3xx→4xx→5xx)
 - music_mood: calm | focus | example | recap | transition
 - Keep visual_title SHORT — one line at 64px
