@@ -299,6 +299,35 @@ def validate_performance(
     return _report("V9_performance", errors, warnings)
 
 
+def validate_beat_id_remaps(remaps: list[dict[str, Any]] | None) -> dict[str, Any]:
+    """Audit trail for advisory→authoritative beat remaps. Never fails validation."""
+    remaps = remaps or []
+    warnings: list[str] = []
+    for row in remaps:
+        warnings.append(
+            f"segment {row.get('segment_id')} op {row.get('op')} "
+            f"remap {row.get('from')!r} → {row.get('to')!r} ({row.get('reason')})"
+        )
+    report = _report("U1_beat_id_remap", [], warnings)
+    report["remaps"] = remaps
+    report["remap_count"] = len(remaps)
+    return report
+
+
+def validate_ghost_scene_cleanup(dropped_ids: list[int] | None) -> dict[str, Any]:
+    """Audit trail for empty-narration scenes dropped before SECE. Never fails."""
+    dropped_ids = dropped_ids or []
+    warnings: list[str] = []
+    if dropped_ids:
+        warnings.append(
+            f"dropped {len(dropped_ids)} empty-narration ghost scenes: {dropped_ids}"
+        )
+    report = _report("U0_ghost_scene_cleanup", [], warnings)
+    report["dropped_empty_narration_scene_ids"] = dropped_ids
+    report["dropped_count"] = len(dropped_ids)
+    return report
+
+
 def run_all_pre_render(
     segments: dict[str, Any],
     visual_plan: dict[str, Any],
@@ -312,11 +341,15 @@ def run_all_pre_render(
     camera: dict[str, Any] | None = None,
     performance: dict[str, Any] | None = None,
     topic_knowledge: dict[str, Any] | None = None,
+    beat_id_remaps: list[dict[str, Any]] | None = None,
+    ghost_scenes_dropped: list[int] | None = None,
 ) -> dict[str, Any]:
     reports = [
+        validate_ghost_scene_cleanup(ghost_scenes_dropped),
         validate_segments(segments),
         validate_visual_plan(visual_plan, segments),
         validate_beats(beats, segments),
+        validate_beat_id_remaps(beat_id_remaps if beat_id_remaps is not None else aligned.get("beat_id_remaps")),
         validate_aligned_plan(aligned),
         validate_render_ir(render_ir),
     ]

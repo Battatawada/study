@@ -217,6 +217,59 @@ class SeceTests(unittest.TestCase):
         b = compile_segment_performance(segment, render_ir=render_ir, attention=attention, camera=camera)
         self.assertEqual(a["retimed"]["timeline"], b["retimed"]["timeline"])
 
+    def test_filter_empty_narration_scenes(self) -> None:
+        from common import filter_narrated_scenes, split_script_for_scenes
+
+        clips = [
+            {"scene_id": 1, "narration": "Arrays store values."},
+            {"scene_id": 2, "narration": ""},
+            {"scene_id": 3, "narration": "   "},
+            {"scene_id": 4, "narration": "Pointers follow."},
+        ]
+        kept, dropped = filter_narrated_scenes(clips)
+        self.assertEqual([c["scene_id"] for c in kept], [1, 4])
+        self.assertEqual(dropped, [2, 3])
+
+        chunks = split_script_for_scenes("One. Two. Three.", 10)
+        self.assertTrue(all(c.strip() for c in chunks))
+        self.assertLessEqual(len(chunks), 10)
+
+    def test_beat_id_remap_clamps_invalid(self) -> None:
+        from sece.align import align_visual_plan_to_beats, resolve_trigger_beat_id
+
+        beats = [
+            {"beat_id": "s7_b1", "start_sec": 0.0, "end_sec": 1.0, "text": "A.", "kind": "explanation"},
+            {"beat_id": "s7_b2", "start_sec": 1.0, "end_sec": 2.0, "text": "B.", "kind": "explanation"},
+        ]
+        resolved, remap = resolve_trigger_beat_id("s7_b3", beats, op_index=1)
+        self.assertEqual(resolved, "s7_b2")
+        self.assertIsNotNone(remap)
+        self.assertEqual(remap["reason"], "advisory_beat_index_clamped")
+
+        visual_plan = {
+            "schema_version": "1.0",
+            "segments": [{
+                "segment_id": 7,
+                "entities": [{"entity_id": "s7_cell_0", "type": "memory_cell", "label": "A"}],
+                "semantic_ops": [
+                    {"op": "allocate", "entity_ids": ["s7_cell_0"], "trigger_beat_id": "s7_b1"},
+                    {"op": "highlight", "entity_id": "s7_cell_0", "trigger_beat_id": "s7_b3"},
+                ],
+            }],
+        }
+        beats_doc = {
+            "segments": [{"segment_id": 7, "duration_sec": 2.0, "beats": beats}],
+        }
+        aligned = align_visual_plan_to_beats(visual_plan, beats_doc)
+        self.assertEqual(aligned["segments"][0]["semantic_ops"][1]["trigger_beat_id"], "s7_b2")
+        self.assertTrue(any(r["from"] == "s7_b3" for r in aligned["beat_id_remaps"]))
+        from sece.validate import validate_aligned_plan, validate_beat_id_remaps
+
+        self.assertEqual(validate_aligned_plan(aligned)["status"], "PASS")
+        remap_report = validate_beat_id_remaps(aligned["beat_id_remaps"])
+        self.assertEqual(remap_report["status"], "PASS")
+        self.assertGreater(remap_report["remap_count"], 0)
+
     def test_pipeline_hooks(self) -> None:
         from sece.pipeline import run_post_phase1, run_post_phase2
 

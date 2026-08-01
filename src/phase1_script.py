@@ -1004,7 +1004,12 @@ def main() -> None:
 
         scene_count = estimate_scene_count(script, pipeline)
         segments = split_script_for_scenes(script, scene_count)
-        print(f"  -> {scene_count} narration scenes", flush=True)
+        min_words = int(pipeline.get("min_words_per_scene", 10))
+        while len(segments) > 1 and len(segments[-1].split()) < min_words:
+            # Fold undersized tail into previous chunk — never keep silent pads.
+            tail = segments.pop()
+            segments[-1] = f"{segments[-1]} {tail}".strip()
+        print(f"  -> {len(segments)} narration scenes (estimated {scene_count})", flush=True)
 
         print("[Visual map] Slide specs per scene...", flush=True)
         mapping, map_raw = collect_visual_mapping(
@@ -1016,7 +1021,16 @@ def main() -> None:
         (out / "scene_mapping_raw.txt").write_text(map_raw, encoding="utf-8")
 
         scene_clips = resolve_scene_visuals(mapping, segments, pipeline)
+        from common import filter_narrated_scenes
         from sece.pipeline import composition_enabled
+
+        scene_clips, dropped_empty = filter_narrated_scenes(scene_clips)
+        if dropped_empty:
+            print(
+                f"  WARN: filtered {len(dropped_empty)} empty-narration scenes "
+                f"before SECE/TTS: {dropped_empty}",
+                flush=True,
+            )
 
         validate_scene_clips(
             scene_clips,

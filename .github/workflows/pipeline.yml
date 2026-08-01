@@ -71,6 +71,13 @@ jobs:
       - name: Install dependencies
         run: pip install --pre -r requirements.txt
 
+      - name: SECE upstream contract regression tests
+        env:
+          PYTHONPATH: src
+        run: |
+          pip install -q pytest
+          python -m pytest tests/test_upstream_contract.py tests/test_sece.py -q
+
       - name: Install ffmpeg (ffmpeg + ffprobe for Phase 2 audio)
         run: sudo apt-get update && sudo apt-get install -y ffmpeg
 

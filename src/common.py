@@ -946,37 +946,43 @@ def split_script_for_scenes(script: str, num_scenes: int) -> list[str]:
     """
     Split narration into N sequential chunks for per-scene TTS.
     Image prompt i aligns with audio chunk i → editor-accurate timing.
-    Distributes words evenly — no empty trailing scenes.
+
+    Never returns empty chunks. If the script cannot fill num_scenes with
+    at least one word each, the returned list is shorter than num_scenes.
     """
     if num_scenes < 1:
         raise ValueError("num_scenes must be >= 1")
     text = re.sub(r"\s+", " ", script.strip())
     if not text:
-        return [""] * num_scenes
+        return []
 
     sentences = re.split(r"(?<=[.!?])\s+", text)
     sentences = [s.strip() for s in sentences if s.strip()]
-    if not sentences:
-        return [text] + [""] * (num_scenes - 1)
+    words = text.split()
+    if not words:
+        return []
 
-    # Fewer sentences than scenes: split by word budget (avoid rapid empty tail clips)
-    if len(sentences) < num_scenes:
-        words = text.split()
-        if not words:
-            return [""] * num_scenes
-        words_per = len(words) / num_scenes
+    # Cap target to available words — never invent silent trailing scenes.
+    target = min(num_scenes, len(words))
+    if target < 1:
+        return []
+
+    if len(sentences) < target:
+        words_per = len(words) / target
         chunks: list[str] = []
-        for i in range(num_scenes):
+        for i in range(target):
             a = int(i * words_per)
-            b = len(words) if i == num_scenes - 1 else int((i + 1) * words_per)
-            chunks.append(" ".join(words[a:b]))
-        return chunks
+            b = len(words) if i == target - 1 else int((i + 1) * words_per)
+            chunk = " ".join(words[a:b]).strip()
+            if chunk:
+                chunks.append(chunk)
+        return _dedupe_empty_merge(chunks)
 
-    if len(sentences) <= num_scenes:
-        return sentences + [""] * (num_scenes - len(sentences))
+    if len(sentences) <= target:
+        return list(sentences)
 
     total_words = sum(len(s.split()) for s in sentences)
-    words_per_chunk = total_words / num_scenes
+    words_per_chunk = total_words / target
     chunks = []
     current: list[str] = []
     word_count = 0
@@ -984,7 +990,7 @@ def split_script_for_scenes(script: str, num_scenes: int) -> list[str]:
     for sent in sentences:
         current.append(sent)
         word_count += len(sent.split())
-        if len(chunks) < num_scenes - 1 and word_count >= words_per_chunk:
+        if len(chunks) < target - 1 and word_count >= words_per_chunk:
             chunks.append(" ".join(current))
             current = []
             word_count = 0
@@ -992,9 +998,29 @@ def split_script_for_scenes(script: str, num_scenes: int) -> list[str]:
     if current:
         chunks.append(" ".join(current))
 
-    while len(chunks) < num_scenes:
-        chunks.append("")
-    return chunks[:num_scenes]
+    return _dedupe_empty_merge(chunks)[:target]
+
+
+def _dedupe_empty_merge(chunks: list[str]) -> list[str]:
+    """Drop blank chunks; never pad with empty narration."""
+    return [c.strip() for c in chunks if c and c.strip()]
+
+
+def filter_narrated_scenes(scene_clips: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], list[int]]:
+    """
+    Drop scenes with empty narration before SECE / TTS.
+
+    Returns (kept_scenes, dropped_scene_ids). Kept scenes retain original scene_id.
+    """
+    kept: list[dict[str, Any]] = []
+    dropped: list[int] = []
+    for i, row in enumerate(scene_clips):
+        sid = int(row.get("scene_id", i + 1))
+        if str(row.get("narration", "")).strip():
+            kept.append(row)
+        else:
+            dropped.append(sid)
+    return kept, dropped
 
 
 def parse_seo_json(text: str) -> dict:

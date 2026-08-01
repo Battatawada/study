@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 from typing import Any
 
+from common import filter_narrated_scenes
 from sece.align import align_visual_plan_to_beats
 from sece.beats import build_beats_document
 from sece.compile import compile_full_document
@@ -31,6 +32,13 @@ def composition_enabled(pipeline: dict[str, Any]) -> bool:
     return bool(sece.get("enabled", False))
 
 
+def _prepare_sece_scenes(
+    scene_clips: list[dict[str, Any]],
+) -> tuple[list[dict[str, Any]], list[int]]:
+    """Filter ghost/empty-narration scenes before any SECE artifact is built."""
+    return filter_narrated_scenes(scene_clips)
+
+
 def run_post_phase1(
     out_dir: Path,
     scene_clips: list[dict[str, Any]],
@@ -51,17 +59,36 @@ def run_post_phase1(
         if src.exists():
             shutil.copy(src, pipeline_snapshot)
 
-    segments_doc = build_segments_from_scene_clips(scene_clips, topic_slug=topic_slug)
+    sece_scenes, dropped_ids = _prepare_sece_scenes(scene_clips)
+    if dropped_ids:
+        print(
+            f"  SECE: dropped {len(dropped_ids)} empty-narration ghost scenes "
+            f"(ids={dropped_ids[:12]}{'...' if len(dropped_ids) > 12 else ''})",
+            flush=True,
+        )
+        clips_path = out_dir / "scene_clips.json"
+        if clips_path.exists():
+            data = json.loads(clips_path.read_text(encoding="utf-8"))
+            data["scenes"] = sece_scenes
+            data["dropped_empty_narration_scene_ids"] = dropped_ids
+            _save(clips_path, data)
+
+    segments_doc = build_segments_from_scene_clips(sece_scenes, topic_slug=topic_slug)
     tkd = build_topic_knowledge_stub(
         topic_slug=topic_slug,
         topic_title=topic_title,
-        scene_clips=scene_clips,
+        scene_clips=sece_scenes,
     )
-    visual_plan = build_visual_plan_from_scene_clips(scene_clips, segments_doc)
+    visual_plan = build_visual_plan_from_scene_clips(sece_scenes, segments_doc)
 
     _save(out_dir / "segments.json", segments_doc)
     _save(out_dir / "topic_knowledge.json", tkd)
     _save(out_dir / "visual_plan.json", visual_plan)
+    if dropped_ids:
+        _save(out_dir / "ghost_scene_cleanup.json", {
+            "dropped_empty_narration_scene_ids": dropped_ids,
+            "kept_count": len(sece_scenes),
+        })
 
     reports = [
         validate_segments(segments_doc),
@@ -70,6 +97,7 @@ def run_post_phase1(
     _save(out_dir / "validation_report_phase1.json", {
         "reports": reports,
         "status": "PASS" if all(r["status"] == "PASS" for r in reports) else "FAIL",
+        "ghost_scenes_dropped": dropped_ids,
     })
 
 
@@ -81,9 +109,53 @@ def run_post_phase2(
     if not composition_enabled(pipeline):
         return
 
+    dropped_ids: list[int] = []
+    scene_clips_path = out_dir / "scene_clips.json"
+    if scene_clips_path.exists():
+        clip_data = json.loads(scene_clips_path.read_text(encoding="utf-8"))
+        raw_scenes = clip_data.get("scenes", [])
+        sece_scenes, dropped_ids = _prepare_sece_scenes(raw_scenes)
+        if dropped_ids:
+            print(
+                f"  SECE: dropped {len(dropped_ids)} empty-narration ghost scenes "
+                f"before compile (ids={dropped_ids[:12]}{'...' if len(dropped_ids) > 12 else ''})",
+                flush=True,
+            )
+            clip_data["scenes"] = sece_scenes
+            clip_data["dropped_empty_narration_scene_ids"] = dropped_ids
+            _save(scene_clips_path, clip_data)
+
+            durations_path = out_dir / "scene_durations.json"
+            if durations_path.exists():
+                keep = {int(s["scene_id"]) for s in sece_scenes}
+                durs = json.loads(durations_path.read_text(encoding="utf-8"))
+                if isinstance(durs, list):
+                    durs = [
+                        d for d in durs
+                        if int(d.get("scene_id", d.get("segment_id", 0))) in keep
+                    ]
+                    _save(durations_path, durs)
+
+            _save(out_dir / "ghost_scene_cleanup.json", {
+                "dropped_empty_narration_scene_ids": dropped_ids,
+                "kept_count": len(sece_scenes),
+            })
+
+        # Always rebuild segments + visual_plan from narrated scenes only.
+        meta: dict[str, Any] = {}
+        meta_path = out_dir / "metadata.json"
+        if meta_path.exists():
+            meta = json.loads(meta_path.read_text(encoding="utf-8"))
+        segments_doc = build_segments_from_scene_clips(
+            sece_scenes,
+            topic_slug=str(meta.get("topic_slug", "")),
+        )
+        _save(out_dir / "segments.json", segments_doc)
+        visual_plan = build_visual_plan_from_scene_clips(sece_scenes, segments_doc)
+        _save(out_dir / "visual_plan.json", visual_plan)
+
     segments_path = out_dir / "segments.json"
     if not segments_path.exists():
-        scene_clips_path = out_dir / "scene_clips.json"
         if scene_clips_path.exists():
             clip_data = json.loads(scene_clips_path.read_text(encoding="utf-8"))
             meta = json.loads((out_dir / "metadata.json").read_text(encoding="utf-8"))
@@ -104,6 +176,12 @@ def run_post_phase2(
     wt_path = out_dir / "word_timings.json"
     if wt_path.exists():
         word_timings = json.loads(wt_path.read_text(encoding="utf-8"))
+        keep_ids = {int(s["segment_id"]) for s in segments_doc.get("segments", [])}
+        if isinstance(word_timings, list):
+            word_timings = [
+                w for w in word_timings
+                if int(w.get("scene_id", w.get("segment_id", 0))) in keep_ids
+            ]
 
     beats_doc = build_beats_document(
         segments_doc.get("segments", []),
@@ -116,6 +194,14 @@ def run_post_phase2(
     if not visual_plan_path.exists():
         return
     visual_plan = json.loads(visual_plan_path.read_text(encoding="utf-8"))
+
+    keep_ids = {int(s["segment_id"]) for s in segments_doc.get("segments", [])}
+    if visual_plan.get("segments"):
+        visual_plan["segments"] = [
+            row for row in visual_plan["segments"]
+            if int(row.get("segment_id", 0)) in keep_ids
+        ]
+        _save(visual_plan_path, visual_plan)
 
     aligned = align_visual_plan_to_beats(visual_plan, beats_doc)
     _save(out_dir / "aligned_plan.json", aligned)
@@ -146,6 +232,8 @@ def run_post_phase2(
         topic_knowledge=json.loads((out_dir / "topic_knowledge.json").read_text(encoding="utf-8"))
         if (out_dir / "topic_knowledge.json").exists()
         else None,
+        beat_id_remaps=aligned.get("beat_id_remaps", []),
+        ghost_scenes_dropped=dropped_ids,
     )
     _save(out_dir / "validation_report.json", report)
 

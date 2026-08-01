@@ -8,6 +8,39 @@ from typing import Any
 from sece.constants import SCHEMA_VERSION
 
 
+_CONCRETE_BEAT_ID_RE = re.compile(r"^s\d+_b\d+$", re.IGNORECASE)
+
+
+def is_concrete_trigger_beat_id(value: Any) -> bool:
+    """True when value looks like an LLM-invented beat id (sN_bM)."""
+    if value is None:
+        return False
+    text = str(value).strip()
+    if not text:
+        return False
+    return bool(_CONCRETE_BEAT_ID_RE.match(text))
+
+
+def sanitize_llm_semantic_ops(ops: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """
+    LLM may only emit null trigger_beat_id.
+
+    Concrete sN_bM values are stripped to null. Beat assignment happens later
+    in align.py after the authoritative beat graph exists.
+    """
+    out: list[dict[str, Any]] = []
+    for op in ops:
+        row = dict(op)
+        tb = row.get("trigger_beat_id")
+        if is_concrete_trigger_beat_id(tb):
+            row["llm_trigger_beat_id_advisory"] = str(tb).strip()
+            row["trigger_beat_id"] = None
+        elif tb is not None and str(tb).strip() == "":
+            row["trigger_beat_id"] = None
+        out.append(row)
+    return out
+
+
 def _entity_id(prefix: str, index: int) -> str:
     return f"{prefix}_{index}"
 
@@ -30,7 +63,7 @@ def _segment_plan_from_row(
         "layout_recipe": row.get("layout_recipe", seg_meta.get("layout_recipe", "stage_single")),
         "entities": list(row.get("entities", [])),
         "relationships": list(row.get("relationships", [])),
-        "semantic_ops": list(row.get("semantic_ops", [])),
+        "semantic_ops": sanitize_llm_semantic_ops(list(row.get("semantic_ops", []))),
         "attention_plan": list(row.get("attention_plan", [])),
         "carry_forward": list(row.get("carry_forward", [])),
         "visual_title": row.get("visual_title", "Concept"),
@@ -69,11 +102,11 @@ def build_visual_plan_from_scene_clips(
         labels = [str(x).strip() for x in labels if str(x).strip()]
 
         entities, relationships = _entities_for_diagram(diagram_type, labels, sid)
-        semantic_ops = _default_ops_for_diagram(diagram_type, entities, labels)
+        semantic_ops = sanitize_llm_semantic_ops(_default_ops_for_diagram(diagram_type, entities, labels))
 
         if isinstance(row.get("visualization"), dict):
             viz = row["visualization"]
-            semantic_ops = [{"op": "use_visualization", "visualization": viz}]
+            semantic_ops = sanitize_llm_semantic_ops([{"op": "use_visualization", "visualization": viz}])
 
         segment_plan = {
             "segment_id": sid,
