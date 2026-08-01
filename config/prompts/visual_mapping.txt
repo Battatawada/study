@@ -4,11 +4,13 @@ Narration:
 {narration_scenes}
 
 Reply with ONLY valid JSON (no markdown):
-{{"scenes":[{{"scene_id":1,"visual_title":"2–6 words","visual_bullets":["max 8 words"],"visual_type":"concept_card|list|comparison|example|recap","diagram_type":"memory_layout|array_access|linked_nodes|tree_nodes|stack_heap|warning_icons|http_request|http_cache|http_redirect|http_error_client|http_error_server|status_code|comparison|flow_steps|list_items|concept","diagram_prompt":"one sentence — internal only","diagram_labels":["label"],"visualization":{{"kind":"memory","transitions":[{{"state":{{"array":[]}}}}]}},"accent_color":"#3B82F6","music_mood":"calm|focus|example|recap|transition"}}]}}
+{{"scenes":[{{"scene_id":1,"visual_title":"2–6 words","visual_bullets":["max 8 words"],"visual_type":"concept_card|list|comparison|example|recap","diagram_type":"memory_layout|array_access|linked_nodes|tree_nodes|stack_heap|warning_icons|http_request|http_cache|http_redirect|http_error_client|http_error_server|status_code|comparison|flow_steps|list_items|concept","diagram_prompt":"one sentence — internal only","diagram_labels":["label"],"visualization":{{"kind":"memory","transitions":[{{"state":{{"array":[]}}}}]}},"layout_recipe":"memory_row|linked_row|comparison_columns|flow_vertical|http_exchange|tree_layered|stage_single","entities":[{{"entity_id":"s1_cell_0","type":"memory_cell","label":"[0]"}}],"relationships":[{{"from":"s1_cell_0","to":"s1_cell_1","type":"adjacent"}}],"semantic_ops":[{{"op":"allocate","entity_ids":["s1_cell_0"],"trigger_beat_id":"s1_b1"}},{{"op":"highlight","entity_id":"s1_cell_1","trigger_beat_id":"s1_b2"}}],"teaching_intent":{{"viewer_question":"What is RAM?","visual_goal":"Show contiguous cells","build_policy":"construct_only"}},"accent_color":"#3B82F6","music_mood":"calm|focus|example|recap|transition"}}]}}
 
 Rules:
 - Exactly {scene_count} scenes, scene_id {scene_id_start}..{scene_id_end}
-- diagram_type + diagram_prompt REQUIRED; prefer memory_layout, array_access, linked_nodes, tree_nodes over concept
+- Prefer SECE visual_plan fields: entities, semantic_ops, layout_recipe, teaching_intent (build_policy must be construct_only)
+- semantic_ops use trigger_beat_id s{{scene_id}}_b1, s{{scene_id}}_b2, … matching narration phrase beats
+- diagram_type + diagram_prompt still accepted as fallback when entities omitted
 - diagram_labels: short on-diagram text (max 6 words each)
 - visualization: state transitions (array, addresses, activeIndex, highlight, caption) — not animation commands
 - visual_bullets complement the diagram; visual_title = concept in that beat

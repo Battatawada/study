@@ -226,6 +226,10 @@ jobs:
           AZURE_SPEECH_REGION: ${{ secrets.AZURE_SPEECH_REGION }}
         run: python src/phase2_audio.py --input output --output output --require-azure
 
+      - name: SECE compile (beats + render_ir)
+        if: ${{ github.event.inputs.skip_phase2 != 'true' }}
+        run: python src/compile_composition.py --input output
+
       - name: Trigger VPS clip render
         run: python src/trigger_vps.py --input output --run-id "${{ steps.meta.outputs.run_id }}"
 

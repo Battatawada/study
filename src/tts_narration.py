@@ -177,6 +177,45 @@ def _voice_for_role(role: str, pool: dict[str, str]) -> str:
     }.get(role, pool["narrator"])
 
 
+def plan_scene_chunks_from_beats(
+    beats: list[dict[str, Any]],
+    *,
+    scene_index: int,
+    pipeline: dict[str, Any],
+) -> list[dict[str, Any]]:
+    """Phrase-level Azure chunks aligned to beat sentences (SSML breaks between beats)."""
+    if not beats:
+        return []
+    pool = _default_voice_pool(pipeline)
+    base_rate = str(pipeline.get("tts_rate", "-4%"))
+    humanize = bool(pipeline.get("tts_humanize", True))
+    chunks: list[dict[str, Any]] = []
+    for sent_i, beat in enumerate(beats):
+        sentence = str(beat.get("text", "")).strip()
+        if not sentence:
+            continue
+        role = _role_for_sentence(sentence, scene_index, sent_i)
+        prosody = _prosody_for_sentence(
+            sentence,
+            scene_index=scene_index,
+            sent_index=sent_i,
+            base_rate=base_rate,
+            is_hook_scene=scene_index == 0,
+            humanize=humanize,
+        )
+        pause_ms = 0
+        if sent_i > 0:
+            pause_ms = _pause_after_sentence(str(beats[sent_i - 1].get("text", "")), humanize=humanize)
+        chunks.append({
+            "text": sentence,
+            "role": role,
+            "voice": _voice_for_role(role, pool),
+            "pause_ms": pause_ms,
+            **prosody,
+        })
+    return chunks
+
+
 def plan_scene_chunks(
     text: str,
     *,

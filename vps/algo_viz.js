@@ -10,9 +10,105 @@
     const p = Math.max(0, Math.min(1, t));
     return p * p * (3 - 2 * p);
   };
+  const easeOut = (t) => 1 - ease(1 - t);
   const lerp = (a, b, t) => a + (b - a) * t;
 
-  function layoutCells(values, addresses, width, height) {
+  function sampleCamera(spec, t, w, h) {
+    const channel = spec.camera || [];
+    if (!channel.length) {
+      return { cx: w / 2, cy: h / 2, zoom: 1 };
+    }
+    let cx = w / 2;
+    let cy = h / 2;
+    let zoom = 1;
+    for (let i = 0; i < channel.length; i++) {
+      const seg = channel[i];
+      const at = seg.at_sec || 0;
+      const dur = seg.duration_sec ?? 0.65;
+      const tcx = seg.center_x ?? w / 2;
+      const tcy = seg.center_y ?? h / 2;
+      const tz = seg.zoom ?? 1;
+      if (t < at) break;
+      if (t >= at + dur) {
+        cx = tcx;
+        cy = tcy;
+        zoom = tz;
+      } else {
+        const p = ease((t - at) / dur);
+        cx = lerp(cx, tcx, p);
+        cy = lerp(cy, tcy, p);
+        zoom = lerp(zoom, tz, p);
+      }
+    }
+    return { cx, cy, zoom };
+  }
+
+  function applyCamera(ctx, cam, w, h) {
+    const { cx, cy, zoom } = cam;
+    ctx.translate(w / 2, h / 2);
+    ctx.scale(zoom, zoom);
+    ctx.translate(-cx, -cy);
+  }
+
+  function fontToken(typography, role, fallback) {
+    const tok = (typography && typography[role]) || {};
+    const size = tok.size || fallback.size || 20;
+    const weight = tok.weight || fallback.weight || 400;
+    const family = tok.family || fallback.family || "Segoe UI";
+    return `${weight} ${size}px '${family}', system-ui, sans-serif`;
+  }
+
+  function attentionState(spec, t) {
+    const timeline = spec.attention_timeline || [];
+    let primary = null;
+    let salience = [];
+    for (const item of timeline) {
+      const start = item.start_sec ?? 0;
+      const end = item.end_sec ?? start + 0.5;
+      if (t >= start && t < end) {
+        primary = item.primary_entity_id;
+        salience = item.salience || [];
+        break;
+      }
+    }
+    return { primary, salience };
+  }
+
+  function layoutCellsFromIR(spec, width, height) {
+    const layout = spec.layout;
+    if (!layout || !Array.isArray(layout.entities)) return null;
+    const drawable = layout.entities.filter((e) => e.type !== "region");
+    if (!drawable.length) return null;
+    const values = spec.values || [];
+    const stageW = layout.stage?.width || width;
+    const stageH = layout.stage?.height || height;
+    const scaleX = width / stageW;
+    const scaleY = height / stageH;
+    return drawable.map((ent, i) => {
+      const box = ent.box || {};
+      const cellW = (box.w || 88) * scaleX;
+      const cellH = (box.h || 56) * scaleY;
+      return {
+        value: String(values[i] ?? ent.label ?? ""),
+        addr: ent.entity_id || "",
+        entityId: ent.entity_id,
+        baseX: (box.x || 0) * scaleX,
+        baseY: (box.y || 0) * scaleY,
+        cellW,
+        cellH,
+        offsetX: 0,
+        offsetY: 0,
+        opacity: 0,
+        highlight: false,
+        dimmed: false,
+        visible: false,
+      };
+    });
+  }
+
+  function layoutCells(values, addresses, width, height, spec) {
+    const fromIR = spec ? layoutCellsFromIR(spec, width, height) : null;
+    if (fromIR) return fromIR;
     const n = values.length;
     const cellW = 88;
     const cellH = 56;
@@ -52,12 +148,14 @@
     ctx.closePath();
   }
 
-  function drawCell(ctx, cell, accent, muted) {
+  function drawCell(ctx, cell, accent, muted, typography) {
     if (!cell.visible || cell.opacity <= 0.01) return;
     const x = cell.baseX + cell.offsetX;
     const y = cell.baseY + cell.offsetY;
     const w = cell.cellW;
     const h = cell.cellH;
+    const labelFont = fontToken(typography, "entity_label", { size: 20, weight: 600 });
+    const addrFont = fontToken(typography, "entity_address", { size: 13, weight: 400 });
     ctx.save();
     ctx.globalAlpha = cell.dimmed ? cell.opacity * 0.32 : cell.opacity;
     if (cell.highlight) {
@@ -72,13 +170,13 @@
     ctx.stroke();
     ctx.shadowBlur = 0;
     ctx.fillStyle = "#f0f0f5";
-    ctx.font = "600 20px 'Segoe UI', system-ui, sans-serif";
+    ctx.font = labelFont;
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     if (cell.value) ctx.fillText(cell.value, x + w / 2, y + h / 2 - 4);
     if (cell.addr) {
       ctx.fillStyle = muted;
-      ctx.font = "13px 'Segoe UI', system-ui, sans-serif";
+      ctx.font = addrFont;
       ctx.fillText(cell.addr, x + w / 2, y + h + 16);
     }
     ctx.restore();
@@ -184,7 +282,7 @@
     const values = spec.values || [];
     const n = Math.max(values.length, 1);
     const padded = values.length ? values : Array(n).fill("");
-    const cells = layoutCells(padded, spec.addresses || [], width, height);
+    const cells = layoutCells(padded, spec.addresses || [], width, height, spec);
     cells.forEach((c) => {
       c.visible = false;
       c.opacity = 0;
@@ -337,9 +435,19 @@
     }
 
     const hlArr = [...highlights];
+    const att = attentionState(spec, t);
+    const salienceMap = {};
+    (att.salience || []).forEach((s) => {
+      if (s.entity_id) salienceMap[s.entity_id] = s.weight ?? 0.45;
+    });
     cells.forEach((c, i) => {
       c.highlight = hlArr.includes(i);
+      if (c.entityId && att.primary === c.entityId) {
+        c.highlight = true;
+      }
+      const weight = c.entityId ? salienceMap[c.entityId] : null;
       c.dimmed = hlArr.length > 0 && !c.highlight;
+      if (weight !== null && weight < 0.55) c.dimmed = true;
       if (c.visible && c.opacity < 0.01) c.opacity = 1;
     });
 
@@ -350,8 +458,12 @@
     const ctx = canvas.getContext("2d");
     const w = canvas.width;
     const h = canvas.height;
+    const typography = spec.typography || {};
     const muted = "#a0a0b0";
+    const captionFont = fontToken(typography, "caption", { size: 24, weight: 600 });
+    ctx.save();
     ctx.clearRect(0, 0, w, h);
+    applyCamera(ctx, sampleCamera(spec, t, w, h), w, h);
 
     if (spec.kind === "comparison") {
       const timeline = spec.timeline || [];
@@ -371,18 +483,19 @@
           ctx.save();
           ctx.globalAlpha = p;
           ctx.fillStyle = "#f0f0f5";
-          ctx.font = "600 24px 'Segoe UI', system-ui, sans-serif";
+          ctx.font = captionFont;
           ctx.textAlign = "center";
           ctx.fillText(step.text, w / 2, h - 28);
           ctx.restore();
         }
       }
+      ctx.restore();
       return;
     }
 
     const state = applyTimeline(spec, t, w, h);
     state.links.forEach((a) => drawArrow(ctx, a, accent));
-    state.cells.forEach((c) => drawCell(ctx, c, accent, muted));
+    state.cells.forEach((c) => drawCell(ctx, c, accent, muted, typography));
     Object.values(state.pointers).forEach((p) => drawPointer(ctx, p, accent));
 
     if (state.caption) {
@@ -394,6 +507,7 @@
       ctx.fillText(state.caption, w / 2, h - 28);
       ctx.restore();
     }
+    ctx.restore();
   }
 
   window.__initAlgoViz = function (canvas, spec, accent) {

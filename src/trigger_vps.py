@@ -19,6 +19,16 @@ INPUT_FILES = (
     "narration.mp3",
     "script_segments.json",
     "word_timings.json",
+    "beats.json",
+    "render_ir.json",
+    "segments.json",
+    "visual_plan.json",
+    "aligned_plan.json",
+    "composition_spec.json",
+    "layout_spec.json",
+    "attention_timeline.json",
+    "camera_channel.json",
+    "typography_spec.json",
     "captions.srt",
     "end_card.mp3",
     "end_card.json",
@@ -85,7 +95,16 @@ def main() -> None:
     render_mode = scene_clips_data.get("render_mode", "slides")
     meta = load_json(args.input / "metadata.json") if (args.input / "metadata.json").exists() else {}
     render_mode = meta.get("render_mode", render_mode)
-    validate_scene_clips(scene_clips, scene_durations, render_mode=render_mode)
+    pipeline_path = args.input / "pipeline.json"
+    pipeline = load_json(pipeline_path) if pipeline_path.exists() else {}
+    from sece.pipeline import composition_enabled
+
+    validate_scene_clips(
+        scene_clips,
+        scene_durations,
+        render_mode=render_mode,
+        composition_engine_enabled=composition_enabled(pipeline),
+    )
 
     with httpx.Client(timeout=300.0) as client:
         if not args.no_wipe:

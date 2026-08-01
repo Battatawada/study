@@ -11,6 +11,9 @@ from pathlib import Path
 from typing import Any
 
 # Allow importing slide_builder from same package
+_REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from slide_builder import render_slide, render_slide_frames  # noqa: E402
 from diagram_renderer import infer_diagram_type  # noqa: E402
@@ -18,6 +21,7 @@ from html_slide import write_slide_html  # noqa: E402
 from animation_presets import uses_semantic_animation  # noqa: E402
 from semantic_slide import build_semantic_slide_html  # noqa: E402
 from html_capture import HtmlSlideCaptureSession  # noqa: E402
+from render_ir_loader import composition_enabled, load_render_scenes, rerender_segment_ids  # noqa: E402
 
 
 FPS = 30
@@ -406,9 +410,11 @@ def _run_html_slide_render_sync(
         pipeline = json.loads(pipeline_path.read_text(encoding="utf-8"))
 
     scene_clips = json.loads((inputs / "scene_clips.json").read_text(encoding="utf-8"))
-    scenes = scene_clips.get("scenes", scene_clips if isinstance(scene_clips, list) else [])
-    durations = json.loads((inputs / "scene_durations.json").read_text(encoding="utf-8"))
-    dur_by_id = {int(d["scene_id"]): float(d["duration_sec"]) for d in durations}
+    scenes, dur_by_id, used_ir = load_render_scenes(
+        inputs,
+        pipeline,
+        require_ir=composition_enabled(pipeline),
+    )
 
     bg_color = pipeline.get("slide_bg_color", "#0f0f1a")
     channel_name = meta.get("niche", "Simply Explained")
@@ -419,6 +425,8 @@ def _run_html_slide_render_sync(
     clip_paths: list[Path] = []
     total = len(scenes)
     state["total_scenes"] = total
+    rerender_ids = rerender_segment_ids(pipeline)
+    state["render_ir_source"] = used_ir
 
     with HtmlSlideCaptureSession(
         width=slide_width,
@@ -432,7 +440,7 @@ def _run_html_slide_render_sync(
             clip_path = work / f"clip_{sid:02d}.mp4"
             html_path = work / f"scene_{sid:02d}.html"
 
-            if clip_path.exists():
+            if clip_path.exists() and (not rerender_ids or sid not in rerender_ids):
                 try:
                     _assert_duration(clip_path, narr_dur, f"html clip {sid}")
                     clip_paths.append(clip_path)
@@ -445,7 +453,7 @@ def _run_html_slide_render_sync(
             state["current_diagram"] = scene.get("diagram_type") or infer_diagram_type(scene)
             _write_state(state_path, state)
 
-            use_semantic = uses_semantic_animation(scene)
+            use_semantic = used_ir or uses_semantic_animation(scene)
             if use_semantic:
                 html_path.write_text(
                     build_semantic_slide_html(
@@ -618,9 +626,11 @@ def _run_pil_slide_render_sync(
         pipeline = json.loads(pipeline_path.read_text(encoding="utf-8"))
 
     scene_clips = json.loads((inputs / "scene_clips.json").read_text(encoding="utf-8"))
-    scenes = scene_clips.get("scenes", scene_clips if isinstance(scene_clips, list) else [])
-    durations = json.loads((inputs / "scene_durations.json").read_text(encoding="utf-8"))
-    dur_by_id = {int(d["scene_id"]): float(d["duration_sec"]) for d in durations}
+    scenes, dur_by_id, used_ir = load_render_scenes(
+        inputs,
+        pipeline,
+        require_ir=composition_enabled(pipeline),
+    )
 
     bg_color = pipeline.get("slide_bg_color", "#0f0f1a")
     channel_name = meta.get("niche", "Simply Explained")
@@ -740,6 +750,11 @@ def _run_film_clip_render_sync(
     movie = movies_dir / movie_slug / "movie.mp4"
     if not movie.exists():
         raise FileNotFoundError(f"Movie not found: {movie}")
+
+    pipeline_path = inputs / "pipeline.json"
+    pipeline: dict[str, Any] = {}
+    if pipeline_path.exists():
+        pipeline = json.loads(pipeline_path.read_text(encoding="utf-8"))
 
     scene_clips = json.loads((inputs / "scene_clips.json").read_text(encoding="utf-8"))
     scenes = scene_clips.get("scenes", scene_clips if isinstance(scene_clips, list) else [])

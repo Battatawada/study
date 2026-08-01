@@ -151,6 +151,10 @@ def resolve_visualization(scene: dict[str, Any]) -> dict[str, Any]:
 
 def resolve_animation_spec(scene: dict[str, Any], *, duration_sec: float | None = None) -> dict[str, Any]:
     """Algorithm → state → planner → timeline → renderer."""
+    prebuilt = scene.get("animation_spec")
+    if isinstance(prebuilt, dict) and prebuilt.get("timeline") and scene.get("beat_locked"):
+        return prebuilt
+
     viz = resolve_visualization(scene)
     if not viz:
         return {}
@@ -158,4 +162,6 @@ def resolve_animation_spec(scene: dict[str, Any], *, duration_sec: float | None 
 
 
 def uses_semantic_animation(scene: dict[str, Any]) -> bool:
+    if isinstance(scene.get("render_ir"), dict) and scene["render_ir"].get("timeline"):
+        return True
     return bool(resolve_visualization(scene))

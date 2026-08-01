@@ -208,9 +208,12 @@ async def run_phase(
     if not script or not scenes_meta:
         raise ValueError("Need script.txt and scenes.json")
 
-    segments_path = input_dir / "script_segments.json"
+    segments_path = input_dir / "segments.json"
     if segments_path.exists():
         segments_data = load_json(segments_path)
+        segments = [clean_script_for_tts(s.get("text", "")) for s in segments_data.get("segments", [])]
+    elif (input_dir / "script_segments.json").exists():
+        segments_data = load_json(input_dir / "script_segments.json")
         segments = [clean_script_for_tts(s.get("text", "")) for s in segments_data]
     else:
         segments = [clean_script_for_tts(t) for t in split_script_for_scenes(script, len(scenes_meta))]
@@ -348,6 +351,15 @@ async def run_phase(
         row.update(cue)
 
     save_json(output_dir / "scene_durations.json", durations)
+
+    try:
+        from sece.pipeline import run_post_phase2
+
+        run_post_phase2(output_dir, pipeline=pipeline)
+        print("  SECE: beats + render_ir compiled", flush=True)
+    except Exception as exc:
+        print(f"  SECE phase2 hook warning: {exc}", flush=True)
+
     if want_word_timings:
         save_json(output_dir / "word_timings.json", word_timings)
     srt_full = merge_srt_blocks(srt_blocks, offsets)

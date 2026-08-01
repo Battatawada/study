@@ -479,6 +479,16 @@ def resolve_scene_visuals(
             scene_data["visualization"] = row["visualization"]
         if isinstance(row.get("algorithm_state"), dict):
             scene_data["algorithm_state"] = row["algorithm_state"]
+        if isinstance(row.get("layout_recipe"), str):
+            scene_data["layout_recipe"] = row["layout_recipe"]
+        if isinstance(row.get("entities"), list):
+            scene_data["entities"] = row["entities"]
+        if isinstance(row.get("semantic_ops"), list):
+            scene_data["semantic_ops"] = row["semantic_ops"]
+        if isinstance(row.get("teaching_intent"), dict):
+            scene_data["teaching_intent"] = row["teaching_intent"]
+        if isinstance(row.get("relationships"), list):
+            scene_data["relationships"] = row["relationships"]
         out.append(scene_data)
     return out
 
@@ -1006,7 +1016,13 @@ def main() -> None:
         (out / "scene_mapping_raw.txt").write_text(map_raw, encoding="utf-8")
 
         scene_clips = resolve_scene_visuals(mapping, segments, pipeline)
-        validate_scene_clips(scene_clips, render_mode=render_mode)
+        from sece.pipeline import composition_enabled
+
+        validate_scene_clips(
+            scene_clips,
+            render_mode=render_mode,
+            composition_engine_enabled=composition_enabled(pipeline),
+        )
         diagram_types = [c.get("diagram_type", "?") for c in scene_clips[:5]]
         print(f"  -> {len(scene_clips)} slide scenes mapped (diagrams: {diagram_types}...)", flush=True)
 
@@ -1104,7 +1120,23 @@ def main() -> None:
     }
     if not args.dry_run:
         meta["story_parts"] = story_parts
+    sece_cfg = pipeline.get("composition_engine", {})
+    if isinstance(sece_cfg, dict) and sece_cfg.get("enabled"):
+        meta["composition_engine"] = True
     save_json(out / "metadata.json", meta)
+
+    try:
+        from sece.pipeline import run_post_phase1
+
+        run_post_phase1(
+            out,
+            scene_clips,
+            topic_slug=topic_slug,
+            topic_title=topic,
+            pipeline=pipeline,
+        )
+    except Exception as exc:
+        print(f"  SECE phase1 hook warning: {exc}", flush=True)
 
     print(f"run_id={run_id}")
     print(f"topic_slug={topic_slug}")
