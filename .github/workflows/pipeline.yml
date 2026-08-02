@@ -300,6 +300,9 @@ jobs:
         with:
           python-version: "3.10"
 
+      - name: Install ffmpeg (ffprobe for render validation)
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+
       - run: pip install httpx
 
       - name: Poll VPS until render complete
@@ -309,9 +312,7 @@ jobs:
         run: python src/download_vps_output.py --run-id "${{ needs.script-and-audio.outputs.run_id }}" --output output
 
       - name: Validate render duration
-        run: |
-          pip install -q httpx
-          python src/validate_render.py --input output
+        run: python src/validate_render.py --input output
 
       - uses: actions/upload-artifact@v4
         with:
